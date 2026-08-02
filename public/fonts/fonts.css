@@ -1,0 +1,19 @@
+/* Generado por tools/fetch_fonts.py — subconjuntos latinos de Google Fonts.
+   Ambas familias se sirven como fuentes variables, así que basta una regla por
+   familia declarando todo el rango de grosores. */
+
+@font-face {
+  font-family: 'Baloo 2';
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: block;
+  src: url('./baloo-2-400.woff2') format('woff2-variations'), url('./baloo-2-400.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Nunito';
+  font-style: normal;
+  font-weight: 400 900;
+  font-display: swap;
+  src: url('./nunito-400.woff2') format('woff2-variations'), url('./nunito-400.woff2') format('woff2');
+}

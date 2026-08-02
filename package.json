@@ -1,0 +1,28 @@
+{
+  "name": "dulce-frenesi-1000",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Dulce Frenesi 1000 - tragamonedas de clusters 7x7 con tumbles y multiplicadores persistentes",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "sim": "tsx src/sim/rtp.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "gsap": "^3.15.0",
+    "pixi.js": "^8.19.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.2",
+    "puppeteer-core": "^25.4.0",
+    "tsx": "^4.23.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.0",
+    "vitest": "^4.1.10"
+  }
+}

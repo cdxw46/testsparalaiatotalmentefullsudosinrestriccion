@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#2b1044" />
+    <meta
+      name="description"
+      content="Dulce Frenesí 1000 · tragamonedas de clusters 7x7 con cascadas y multiplicadores persistentes"
+    />
+    <title>Dulce Frenesí 1000</title>
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="preload" href="./fonts/baloo-2-400.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="./fonts/fonts.css" />
+    <link rel="preload" href="./assets/bg/candyland.webp" as="image" />
+  </head>
+  <body>
+    <div class="app" id="app">
+      <div class="backdrop" aria-hidden="true">
+        <div class="backdrop__image"></div>
+        <div class="backdrop__glow"></div>
+      </div>
+
+      <main class="stage" id="stage">
+        <canvas id="game-canvas"></canvas>
+
+        <div class="stage__logo" aria-hidden="true">
+          <span class="stage__logo-top">DULCE</span>
+          <span class="stage__logo-mid">FRENESÍ</span>
+          <span class="stage__logo-num">1000</span>
+        </div>
+
+        <section class="buy-panel" id="buy-panel" aria-label="Compra de función">
+          <div class="buy-panel__pieces" id="ante-chip">
+            <div class="buy-panel__pieces-label">APUESTA ANTE</div>
+            <button class="ante-toggle" id="ante-toggle" type="button" aria-pressed="false">
+              <span class="ante-toggle__dot"></span>
+              <span class="ante-toggle__text">+25 %</span>
+            </button>
+            <div class="buy-panel__pieces-hint">más scatters</div>
+          </div>
+          <button class="buy-btn buy-btn--normal" id="buy-free" type="button">
+            <span class="buy-btn__title">COMPRE <br />TIRADAS GRATIS</span>
+            <span class="buy-btn__price" id="buy-free-price">100,00 $</span>
+          </button>
+          <button class="buy-btn buy-btn--super" id="buy-super" type="button">
+            <span class="buy-btn__title">COMPRE SÚPER <br />TIRADAS GRATIS</span>
+            <span class="buy-btn__price" id="buy-super-price">500,00 $</span>
+          </button>
+        </section>
+
+        <div class="toast" id="toast" role="status" aria-live="polite"></div>
+      </main>
+
+      <footer class="controls" id="controls">
+        <div class="controls__side controls__side--left">
+          <button class="icon-btn" id="btn-menu" type="button" title="Ajustes" aria-label="Ajustes">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 7h16M4 12h16M4 17h16" />
+            </svg>
+          </button>
+          <button class="icon-btn" id="btn-info" type="button" title="Información y pagos" aria-label="Información y pagos">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M12 10.5v6M12 7.5v.01" />
+            </svg>
+          </button>
+          <button class="icon-btn" id="btn-sound" type="button" title="Sonido" aria-label="Sonido" aria-pressed="true">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M5 9v6h3l4 4V5L8 9H5z" />
+              <path d="M16 9.5a4 4 0 0 1 0 5" class="sound-wave" />
+            </svg>
+          </button>
+        </div>
+
+        <dl class="meters">
+          <div class="meter">
+            <dt>CRÉDITO</dt>
+            <dd id="meter-balance">5000,00 $</dd>
+          </div>
+          <div class="meter meter--bet">
+            <dt>APUESTA</dt>
+            <dd id="meter-bet">1,00 $</dd>
+          </div>
+        </dl>
+
+        <div class="win-readout" id="win-readout">
+          <span class="win-readout__label" id="win-label">GANANCIA</span>
+          <span class="win-readout__value" id="win-value">0,00 $</span>
+        </div>
+
+        <div class="controls__spin">
+          <button class="bet-btn" id="bet-down" type="button" aria-label="Bajar apuesta">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12" /></svg>
+          </button>
+          <button class="spin-btn" id="spin" type="button" aria-label="Girar">
+            <span class="spin-btn__ring"></span>
+            <span class="spin-btn__core">
+              <svg viewBox="0 0 48 48" aria-hidden="true">
+                <path
+                  d="M24 8a16 16 0 1 1-11.3 4.7"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="5"
+                  stroke-linecap="round"
+                />
+                <path d="M12 4v10h10" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </span>
+            <span class="spin-btn__count" id="spin-count"></span>
+          </button>
+          <button class="bet-btn" id="bet-up" type="button" aria-label="Subir apuesta">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6v12M6 12h12" /></svg>
+          </button>
+          <button class="auto-btn" id="btn-auto" type="button">
+            <span>TIR.</span><span>AUTO.</span>
+          </button>
+          <button class="turbo-btn" id="btn-turbo" type="button" aria-pressed="false" title="Giro turbo">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z" /></svg>
+          </button>
+        </div>
+      </footer>
+    </div>
+
+    <div class="modal" id="modal" hidden>
+      <div class="modal__backdrop" data-close="1"></div>
+      <div class="modal__card" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <header class="modal__head">
+          <h2 id="modal-title">Información</h2>
+          <button class="modal__close" data-close="1" type="button" aria-label="Cerrar">×</button>
+        </header>
+        <div class="modal__body" id="modal-body"></div>
+      </div>
+    </div>
+
+    <div class="loader" id="loader">
+      <div class="loader__lolly">
+        <div class="loader__swirl"></div>
+        <div class="loader__stick"></div>
+      </div>
+      <div class="loader__title">DULCE FRENESÍ <b>1000</b></div>
+      <div class="loader__bar"><i id="loader-bar"></i></div>
+      <button class="loader__play" id="loader-play" type="button" hidden>TOCAR PARA JUGAR</button>
+      <div class="loader__legal">Juego de demostración · sin dinero real</div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

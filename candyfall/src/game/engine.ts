@@ -282,8 +282,9 @@ export function nextBet(current: number, dir: 1 | -1): number {
 }
 
 export function formatMoney(n: number): string {
-  return n.toLocaleString('es-ES', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+  const negative = n < 0;
+  const abs = Math.abs(n);
+  const [intPart, decPart] = abs.toFixed(2).split('.');
+  const grouped = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return `${negative ? '-' : ''}${grouped},${decPart}`;
 }

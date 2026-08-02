@@ -56,8 +56,10 @@ button {
   min-height: 100dvh;
   display: grid;
   grid-template-rows: auto 1fr auto;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   isolation: isolate;
+  padding-bottom: env(safe-area-inset-bottom, 0);
 }
 
 .sky {
@@ -729,6 +731,8 @@ button {
     0 14px 28px rgba(160, 16, 72, 0.45);
   color: white;
   transition: transform 0.12s ease;
+  touch-action: manipulation;
+  -webkit-user-select: none;
 }
 
 .spin-btn:hover:not(:disabled) { transform: scale(1.04); }
@@ -817,44 +821,264 @@ button {
 }
 
 @media (max-width: 900px) {
+  :root {
+    --machine-max: min(68vw, 520px);
+  }
+
   .playfield {
     grid-template-columns: 1fr;
     justify-items: center;
+    gap: 10px;
+    padding: 4px 12px 8px;
+    width: 100%;
   }
 
   .left-panel {
     order: 2;
-    width: min(420px, 100%);
+    width: min(520px, 100%);
     flex-direction: row;
     flex-wrap: wrap;
+    gap: 8px;
   }
 
-  .left-panel .buy-btn { flex: 1 1 160px; }
+  .left-panel .buy-btn { flex: 1 1 150px; padding: 12px 14px; }
   .left-panel .pay-hint { flex: 1 1 100%; }
 
   .right-panel {
     order: 3;
-    width: min(420px, 100%);
+    width: min(520px, 100%);
     flex-direction: row;
     flex-wrap: wrap;
+    gap: 8px;
   }
 
   .right-panel > * { flex: 1 1 120px; }
 
-  .machine { order: 1; width: min(92vw, 520px); }
+  .machine {
+    order: 1;
+    width: min(92vw, 520px);
+    max-width: none;
+  }
 
   .dispenser { display: none; }
 
   .lolli.l3,
   .candy-cane.c2 { display: none; }
+
+  .hud {
+    position: sticky;
+    bottom: 0;
+    padding: 6px 12px calc(10px + env(safe-area-inset-bottom, 0));
+    background: linear-gradient(180deg, transparent, rgba(40, 10, 30, 0.35) 30%, rgba(40, 10, 30, 0.55));
+    backdrop-filter: blur(2px);
+  }
 }
 
-@media (max-width: 520px) {
-  .brand-name { font-size: 2rem; }
-  .hud-stats { gap: 10px; padding: 8px 12px; }
-  .stat { min-width: 80px; }
-  .stat strong { font-size: 1.05rem; }
-  .spin-btn { width: 74px; height: 74px; }
-  .bet-btn, .ctrl { width: 42px; height: 42px; }
-  .controls { gap: 8px; }
+@media (max-width: 640px) {
+  :root {
+    --machine-max: min(96vw, 440px);
+  }
+
+  .topbar {
+    padding: 10px 12px 0;
+  }
+
+  .brand-mark {
+    width: 34px;
+    height: 34px;
+    border-radius: 12px;
+  }
+
+  .brand-name {
+    font-size: clamp(1.7rem, 8vw, 2.2rem);
+  }
+
+  .icon-btn {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+  }
+
+  .playfield {
+    gap: 8px;
+    padding: 2px 8px 4px;
+  }
+
+  .machine {
+    width: min(96vw, 440px);
+  }
+
+  .pipe-frame {
+    padding: 10px;
+    border-radius: 22px;
+  }
+
+  .icing {
+    top: -8%;
+    height: 15%;
+  }
+
+  .left-panel .pay-hint,
+  .right-panel .legend {
+    display: none;
+  }
+
+  .buy-btn {
+    border-radius: 14px;
+    padding: 10px 12px;
+    min-height: 48px;
+  }
+
+  .buy-label {
+    font-size: 0.82rem;
+  }
+
+  .buy-price {
+    font-size: 0.95rem;
+  }
+
+  .meter {
+    padding: 8px 10px;
+    border-radius: 12px;
+  }
+
+  .meter strong {
+    font-size: 1.35rem;
+  }
+
+  .hud-stats {
+    width: min(100%, 420px);
+    gap: 6px;
+    padding: 8px 10px;
+    border-radius: 16px;
+  }
+
+  .stat {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .stat span {
+    font-size: 0.65rem;
+  }
+
+  .stat strong {
+    font-size: 0.98rem;
+  }
+
+  .message {
+    font-size: 0.88rem;
+    padding: 0 8px;
+  }
+
+  .controls {
+    gap: 8px;
+    width: min(100%, 420px);
+    justify-content: center;
+  }
+
+  .spin-btn {
+    width: 72px;
+    height: 72px;
+    flex-shrink: 0;
+  }
+
+  .spin-arrows {
+    font-size: 1.9rem;
+  }
+
+  .bet-btn,
+  .ctrl {
+    width: 46px;
+    height: 46px;
+    min-width: 46px;
+    border-radius: 14px;
+    font-size: 1.25rem;
+    touch-action: manipulation;
+  }
+
+  .ctrl.auto {
+    min-width: 58px;
+    font-size: 0.7rem;
+  }
+
+  .hills::before,
+  .hills::after,
+  .lolli.l1,
+  .candy-cane.c1 {
+    display: none;
+  }
+
+  .win-banner {
+    font-size: 1rem;
+    padding: 10px 16px;
+    max-width: 92vw;
+    white-space: normal;
+    text-align: center;
+  }
+}
+
+@media (max-width: 380px) {
+  .brand-name { font-size: 1.55rem; }
+  .machine { width: 96vw; }
+  .left-panel .buy-label { font-size: 0.75rem; }
+  .spin-btn { width: 66px; height: 66px; }
+  .bet-btn, .ctrl { width: 42px; height: 42px; min-width: 42px; }
+  .hud-stats { gap: 4px; }
+}
+
+/* Landscape phones: keep board + controls usable */
+@media (max-height: 500px) and (orientation: landscape) {
+  .stage {
+    grid-template-rows: auto 1fr;
+  }
+
+  .playfield {
+    grid-template-columns: auto minmax(220px, 42vh) auto;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .left-panel,
+  .right-panel {
+    order: unset;
+    width: auto;
+    max-width: 160px;
+    flex-direction: column;
+  }
+
+  .left-panel .pay-hint,
+  .right-panel .legend {
+    display: none;
+  }
+
+  .machine {
+    order: unset;
+    width: min(42vh, 320px);
+  }
+
+  .hud {
+    position: fixed;
+    right: 8px;
+    bottom: 8px;
+    left: auto;
+    width: auto;
+    padding: 0;
+    background: none;
+    backdrop-filter: none;
+  }
+
+  .hud-stats,
+  .message {
+    display: none;
+  }
+
+  .controls {
+    gap: 6px;
+  }
+
+  .spin-btn {
+    width: 58px;
+    height: 58px;
+  }
 }

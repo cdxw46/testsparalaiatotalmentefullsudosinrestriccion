@@ -14,6 +14,8 @@ const CELLS_BEHIND = 8
 const CELLS_RENDERED = 52
 /** El carrusel avanza siempre hacia delante; el mapa de resultados se poda. */
 const OVERRIDE_LIMIT = 240
+/** Alto de la casilla frente a su ancho; debe coincidir con `--cell-h`. */
+const CELL_RATIO = 1.58
 
 interface SpinPlan {
   multiplier: number
@@ -127,9 +129,9 @@ export function Reel() {
 
     const observer = new ResizeObserver(([entry]) => {
       const { width, height } = entry.contentRect
-      // La casilla se dimensiona por altura para conservar la silueta del nicho,
-      // pero se limita por ancho para que siempre quepan al menos cuatro.
-      const next = Math.round(Math.max(72, Math.min(height * 0.44, width / 4.35)))
+      // La casilla llena la altura disponible conservando su proporcion, pero
+      // se limita por ancho para que siempre quepan al menos cuatro nichos.
+      const next = Math.round(Math.max(72, Math.min(height / CELL_RATIO, width / 4.2)))
       setCellW(next)
     })
 

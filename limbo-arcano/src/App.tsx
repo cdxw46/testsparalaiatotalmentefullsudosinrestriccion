@@ -116,10 +116,8 @@ export default function App() {
               <RecentTicker />
             </div>
 
-            <div className="relative flex flex-1 items-center py-2">
-              <div className="w-full">
-                <Reel />
-              </div>
+            <div className="relative flex min-h-0 flex-1 py-2">
+              <Reel />
               <ResultBanner />
             </div>
 

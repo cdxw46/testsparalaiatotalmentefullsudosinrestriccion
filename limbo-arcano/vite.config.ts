@@ -13,5 +13,12 @@ export default defineConfig({
   server: {
     host: true,
     port: 5173,
+    // Permite servir la vista previa a traves de tuneles (cloudflared, ngrok).
+    allowedHosts: true,
+  },
+  preview: {
+    host: true,
+    port: 4173,
+    allowedHosts: true,
   },
 })

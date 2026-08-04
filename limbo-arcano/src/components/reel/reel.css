@@ -6,9 +6,13 @@
  * se actualice sin volver a renderizar en React.
  */
 
+/* Ocupa toda la altura util de la tarjeta: la casilla se dimensiona a partir de
+   ella, asi que dejar hueco muerto encogeria los nichos sin motivo. */
 .reel-viewport {
   position: relative;
-  height: var(--reel-h, clamp(14rem, 40vh, 26rem));
+  flex: 1 1 auto;
+  align-self: stretch;
+  min-height: 12rem;
   overflow: hidden;
   contain: layout paint style;
 }
@@ -21,11 +25,17 @@
   will-change: transform, filter;
 }
 
+/* La casilla mantiene su proporcion en vez de estirarse hasta el alto del
+   visor: un nicho el doble de alto que ancho deja al personaje diminuto en el
+   fondo de una boveda vacia. Se centra verticalmente con margen negativo para
+   dejar libre `transform`, que usa el foco de la aguja. */
 .reel-cell {
   --k: 0;
+  --cell-h: calc(var(--cell-w) * 1.58);
   position: absolute;
-  top: 0;
-  bottom: 0;
+  top: 50%;
+  margin-top: calc(var(--cell-h) / -2);
+  height: var(--cell-h);
   width: var(--cell-w);
   padding-inline: calc(var(--cell-w) * 0.045);
   display: flex;
@@ -40,15 +50,34 @@
   flex: 1;
   min-height: 0;
   border-radius: 999px 999px calc(var(--cell-w) * 0.07) calc(var(--cell-w) * 0.07);
-  padding: clamp(4px, calc(var(--cell-w) * 0.05), 9px);
+  padding: clamp(5px, calc(var(--cell-w) * 0.085), 16px);
   background:
-    linear-gradient(160deg, rgb(var(--f3) / 0.95) 0%, rgb(var(--f2)) 26%, rgb(var(--f1)) 58%, rgb(var(--f2) / 0.9) 100%);
+    linear-gradient(
+      158deg,
+      rgb(var(--f3)) 0%,
+      rgb(var(--f2)) 22%,
+      rgb(var(--f1)) 47%,
+      rgb(var(--f2)) 74%,
+      rgb(var(--f3) / 0.75) 100%
+    );
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.28),
-    inset 0 -2px 4px rgb(0 0 0 / 0.55),
-    0 8px 22px -10px rgb(0 0 0 / 0.9),
-    0 0 calc(14px + var(--k) * 46px) calc(var(--k) * 3px) rgb(var(--accent) / calc(0.1 + var(--k) * 0.5));
-  filter: brightness(calc(0.82 + var(--k) * 0.38));
+    inset 0 1px 0 rgb(255 255 255 / 0.4),
+    inset 0 -2px 5px rgb(0 0 0 / 0.6),
+    0 10px 26px -10px rgb(0 0 0 / 0.9),
+    0 0 calc(14px + var(--k) * 46px) calc(var(--k) * 3px) rgb(var(--accent) / calc(0.12 + var(--k) * 0.5));
+  filter: brightness(calc(0.9 + var(--k) * 0.32));
+}
+
+/* Bisel entre el marco y el nicho: separa el metal de la penumbra interior. */
+.reel-arch::after {
+  content: '';
+  position: absolute;
+  inset: calc(clamp(5px, calc(var(--cell-w) * 0.085), 16px) - 2px);
+  border-radius: 999px 999px calc(var(--cell-w) * 0.05) calc(var(--cell-w) * 0.05);
+  border: 1px solid rgb(var(--accent) / calc(0.22 + var(--k) * 0.55));
+  box-shadow: inset 0 0 calc(6px + var(--k) * 18px) rgb(var(--accent) / calc(0.12 + var(--k) * 0.3));
+  pointer-events: none;
+  z-index: 2;
 }
 
 /* Vetas del metal: un rayado muy tenue rompe el degradado plano. */
@@ -93,7 +122,7 @@
   position: absolute;
   left: 50%;
   bottom: 0;
-  width: 108%;
+  width: 132%;
   translate: -50% 0;
   object-fit: contain;
   object-position: 50% 100%;
@@ -155,7 +184,7 @@
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
-  font-size: clamp(11px, calc(var(--cell-w) * 0.155), 26px);
+  font-size: calc(clamp(11px, calc(var(--cell-w) * 0.155), 26px) * var(--plate-scale, 1));
   color: color-mix(in srgb, rgb(var(--accent)) calc(55% + var(--k) * 45%), #ffffff);
   background: linear-gradient(180deg, rgb(10 14 20 / 0.98), rgb(3 5 8 / 0.98));
   border: 1px solid rgb(var(--accent) / calc(0.22 + var(--k) * 0.6));

@@ -17,7 +17,7 @@ vuelve a ganar en el mismo sitio.
 | Marcas de posicion | x2 al ganar, se duplican hasta x8192 |
 | Aplicacion | el premio se multiplica por la **suma** de las marcas que pisa |
 | Vueltas gratis | 3, 4 o 5 dispersiones -> 7, 8 o 10 vueltas con 1, 2 o 3 mejoras |
-| RTP medido | 96,05% |
+| RTP medido | 95,64% |
 | Premio maximo | 30 000x la apuesta |
 | Volatilidad | extrema |
 
@@ -74,13 +74,17 @@ npm run simulate -- 8000000
 El calibrado actual (8 millones de tiradas) deja:
 
 ```
-RTP                96,05%
-  juego base       ~68%
-  vueltas gratis   ~28%
-tiradas premiadas  ~45%
-bonus              1 de cada ~180
-premio maximo      30 000x
+RTP                95,64%
+  juego base       64,00%
+  vueltas gratis   31,64%
+tiradas premiadas  44,82%
+bonus              1 de cada 181
+premio maximo      30 000x  (2 veces en 8 millones)
+marca mas alta     x8192
 ```
+
+Ocho millones de tiradas siguen dejando unas decimas de incertidumbre: la cola
+es tan larga que un unico premio maximo mueve el RTP casi medio punto.
 
 Cualquier retoque de `BASE_WEIGHTS`, `FREE_WEIGHTS` o `PAYTABLE` obliga a volver
 a medir. Dos hallazgos del calibrado quedaron escritos en el codigo:

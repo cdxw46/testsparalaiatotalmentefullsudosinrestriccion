@@ -110,5 +110,8 @@ export const isPaySymbol = (id: SymbolId): id is PaySymbol =>
  * RTP medido, no calculado: la mecanica de marcas acumulables no se resuelve a
  * mano. Sale de `npm run simulate -- 8000000`, y cualquier retoque de pesos o
  * de la tabla obliga a volver a medirlo.
+ *
+ * Ocho millones de tiradas siguen dejando unas decimas de incertidumbre: la
+ * cola es tan larga que un solo premio maximo mueve el resultado un 0,4%.
  */
-export const THEORETICAL_RTP = 0.9605
+export const THEORETICAL_RTP = 0.9564

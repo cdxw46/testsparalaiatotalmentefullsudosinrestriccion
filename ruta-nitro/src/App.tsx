@@ -111,8 +111,14 @@ export default function App() {
             className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(7,8,12,0.62),rgba(7,8,12,0.3)_38%,rgba(7,8,12,0.94))]"
           />
 
-          <div className="relative flex flex-1 flex-col justify-center p-3 sm:p-4">
-            <div className="relative mx-auto w-full max-w-[52rem]">
+          <div className="relative flex flex-1 flex-col justify-center p-2.5 sm:p-3">
+            {/* La rejilla es 6:5, asi que su ancho se limita tambien por lo que
+                queda de alto una vez descontadas la barra superior y la de
+                apuesta; sin esto se come el panel inferior en pantallas bajas. */}
+            <div
+              className="relative mx-auto w-full"
+              style={{ width: 'min(100%, min(52rem, calc((100dvh - 20rem) * 1.2)))' }}
+            >
               <Grid />
               <FreeSpinsLayer />
 

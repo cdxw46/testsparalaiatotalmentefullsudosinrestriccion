@@ -151,7 +151,8 @@
 
   .btn-go:disabled {
     cursor: not-allowed;
-    filter: grayscale(0.65) brightness(0.6);
+    /* Se apaga sin desaturar del todo: en gris parecia averiado, no ocupado. */
+    filter: saturate(0.72) brightness(0.62);
     box-shadow: none;
   }
 

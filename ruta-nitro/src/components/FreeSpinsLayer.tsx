@@ -29,47 +29,49 @@ function UpgradeChips({ upgrades }: { upgrades: readonly Upgrade[] }) {
   )
 }
 
-/** Carteles de entrada y salida de la serie, y contador mientras dura. */
+/**
+ * Contador de la serie. Va en su propia franja encima de la rejilla y no
+ * flotando sobre ella: superpuesto tapaba la fila de arriba justo cuando esa
+ * fila es la que esta jugando.
+ */
+export function FreeSpinsCounter() {
+  const t = useT()
+  const free = useGame((state) => state.free)
+  const intro = useGame((state) => state.intro)
+
+  return (
+    <AnimatePresence>
+      {free && !intro && (
+        <motion.div
+          key="counter"
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: 'auto' }}
+          exit={{ opacity: 0, height: 0 }}
+          className="overflow-hidden"
+        >
+          <div className="mb-2 flex items-center justify-center gap-3 rounded-xl border border-nitro-500/45 bg-black/60 px-4 py-1.5 backdrop-blur-md">
+            <span className="text-[9.5px] tracking-widest text-nitro-400/80 uppercase">{t('free.title')}</span>
+            <span className="tabular font-display text-[15px] text-white">
+              {t('free.counter', { index: free.index, total: free.total })}
+            </span>
+            <span className="h-5 w-px bg-white/15" />
+            <span className="text-[9.5px] tracking-widest text-asphalt-400 uppercase">{t('free.total')}</span>
+            <span className="tabular text-[15px] font-bold text-nitro-400">${formatMoney(free.win)}</span>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  )
+}
+
+/** Carteles de entrada y salida de la serie. */
 export function FreeSpinsLayer() {
   const t = useT()
   const intro = useGame((state) => state.intro)
   const outro = useGame((state) => state.outro)
-  const free = useGame((state) => state.free)
 
   return (
     <>
-      <AnimatePresence>
-        {free && !intro && !outro && (
-          <motion.div
-            key="counter"
-            initial={{ opacity: 0, y: -12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            className="pointer-events-none absolute top-2 left-1/2 z-30 -translate-x-1/2"
-          >
-            <div className="flex items-center gap-3 rounded-xl border border-nitro-500/45 bg-black/72 px-4 py-2 backdrop-blur-md">
-              <span className="leading-tight">
-                <span className="block text-[9.5px] tracking-widest text-nitro-400/80 uppercase">
-                  {t('free.title')}
-                </span>
-                <span className="tabular font-display block text-[15px] text-white">
-                  {t('free.counter', { index: free.index, total: free.total })}
-                </span>
-              </span>
-              <span className="h-7 w-px bg-white/15" />
-              <span className="leading-tight">
-                <span className="block text-[9.5px] tracking-widest text-asphalt-400 uppercase">
-                  {t('free.total')}
-                </span>
-                <span className="tabular block text-[15px] font-bold text-nitro-400">
-                  ${formatMoney(free.win)}
-                </span>
-              </span>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       <AnimatePresence>
         {(intro || outro) && (
           <motion.div

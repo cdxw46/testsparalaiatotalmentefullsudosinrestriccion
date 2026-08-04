@@ -87,7 +87,14 @@ export interface Blast {
   radius: number
 }
 
-export type StageKind = 'spawn' | 'gears' | 'wins' | 'blast' | 'refill'
+export interface Overtake {
+  /** Fila por la que pasa el corredor. */
+  row: number
+  symbol: PaySymbol
+  positions: number[]
+}
+
+export type StageKind = 'spawn' | 'gears' | 'overtake' | 'wins' | 'blast' | 'refill'
 
 export interface Stage {
   kind: StageKind
@@ -100,6 +107,7 @@ export interface Stage {
   clusters?: Cluster[]
   gears?: GearReveal
   blast?: Blast
+  overtake?: Overtake
   /** Premio otorgado en esta etapa, en moneda. */
   win?: number
 }
@@ -157,6 +165,15 @@ const BOOST_WEIGHTS = [
   [4, 21],
   [8, 5],
 ] as const
+
+/**
+ * Probabilidad de que un corredor cruce la rejilla en cada tirada.
+ *
+ * Sin este modificador la mayoria de las tiradas eran treinta simbolos que
+ * caian y ya: no pasaba nada entre medias. El adelantamiento pinta una fila
+ * entera del mismo simbolo, que casi siempre deja el grupo a tiro de los ocho.
+ */
+const OVERTAKE_CHANCE = { base: 0.09, free: 0.06 } as const
 
 const bumpMultiplier = (current: number) =>
   current === 0 ? 2 : Math.min(current * 2, MAX_MULTIPLIER)
@@ -263,6 +280,35 @@ function resolveGears(
   }
 
   return { origins, symbol, expanded: [...expanded], boost, infected }
+}
+
+/**
+ * Un corredor cruza una fila y deja tras de si un rastro del mismo simbolo.
+ * Respeta comodines y dispersiones, que no se pisan.
+ */
+function runOvertake(board: Board, rng: Rng, mode: 'base' | 'free', nextUid: () => number): Overtake | null {
+  if (rng.next() >= OVERTAKE_CHANCE[mode]) return null
+
+  const row = rng.int(ROWS)
+  // Se elige con los pesos del bombo para no regalar los simbolos altos.
+  const symbol = weightedPick(
+    rng,
+    (mode === 'free' ? FREE_WEIGHTS : BASE_WEIGHTS).filter(([id]) => isPaySymbol(id)) as readonly (readonly [
+      PaySymbol,
+      number,
+    ])[],
+  )
+
+  const positions: number[] = []
+  for (let reel = 0; reel < REELS; reel++) {
+    const position = positionAt(reel, row)
+    const current = board[position].id
+    if (current === 'flag' || current === 'lights' || current === 'lap') continue
+    board[position] = { id: symbol, uid: nextUid() }
+    positions.push(position)
+  }
+
+  return positions.length > 0 ? { row, symbol, positions } : null
 }
 
 /** Agrupa los simbolos que alcanzan el minimo, contando comodines. */
@@ -384,6 +430,9 @@ export function spin(input: SpinInput): SpinResult {
 
   const gears = resolveGears(board, multipliers, rng, infectious, nextUid)
   if (gears) record({ kind: 'gears', board, gears })
+
+  const overtake = runOvertake(board, rng, mode, nextUid)
+  if (overtake) record({ kind: 'overtake', board, overtake })
 
   const maxWin = MAX_WIN_X * bet
   let totalWin = 0

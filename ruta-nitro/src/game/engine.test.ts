@@ -8,6 +8,7 @@ import {
   blastArea,
   findClusters,
   positionAt,
+  rowOf,
   spin,
   spinsForScatters,
   type Board,
@@ -248,6 +249,55 @@ describe('spin', () => {
       if (result.capped) continue
       const staged = result.stages.reduce((total, stage) => total + (stage.win ?? 0), 0)
       expect(staged).toBeCloseTo(result.totalWin, 8)
+    }
+  })
+})
+
+describe('adelantamiento', () => {
+  /** Recorre tiradas hasta dar con las que traen corredor. */
+  const collect = (limit: number) => {
+    const found: { row: number; symbol: string; positions: number[] }[] = []
+    for (let nonce = 0; nonce < limit; nonce++) {
+      const result = spin({ serverSeed: SERVER, clientSeed: CLIENT, nonce, bet: 1, mode: 'base' })
+      const stage = result.stages.find((candidate) => candidate.kind === 'overtake')
+      if (stage?.overtake) found.push(stage.overtake)
+    }
+    return found
+  }
+
+  it('deja la fila entera del mismo simbolo', () => {
+    const events = collect(400)
+    expect(events.length).toBeGreaterThan(0)
+
+    for (const event of events) {
+      expect(event.positions.length).toBeGreaterThan(0)
+      for (const position of event.positions) {
+        expect(rowOf(position)).toBe(event.row)
+      }
+      // Una fila son seis casillas; solo comodines y dispersiones se libran.
+      expect(event.positions.length).toBeLessThanOrEqual(REELS)
+    }
+  })
+
+  it('aparece con la frecuencia de diseno', () => {
+    const events = collect(4000)
+    // Configurado al 9%; se deja holgura por la varianza de la muestra.
+    expect(events.length / 4000).toBeGreaterThan(0.05)
+    expect(events.length / 4000).toBeLessThan(0.13)
+  })
+
+  it('no pisa comodines ni dispersiones', () => {
+    for (let nonce = 0; nonce < 400; nonce++) {
+      const result = spin({ serverSeed: SERVER, clientSeed: CLIENT, nonce, bet: 1, mode: 'base' })
+      const index = result.stages.findIndex((candidate) => candidate.kind === 'overtake')
+      if (index <= 0) continue
+
+      const before = result.stages[index - 1].board
+      const after = result.stages[index].board
+      for (let position = 0; position < CELLS; position++) {
+        const previous = before[position].id
+        if (previous === 'flag' || previous === 'lights') expect(after[position].id).toBe(previous)
+      }
     }
   })
 })

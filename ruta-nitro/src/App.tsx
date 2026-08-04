@@ -2,7 +2,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { useEffect, useState } from 'react'
 import backdrop from '@/assets/bg-canyon.webp'
 import { BetBar } from '@/components/BetBar'
-import { FreeSpinsLayer } from '@/components/FreeSpinsLayer'
+import { FreeSpinsCounter, FreeSpinsLayer } from '@/components/FreeSpinsLayer'
 import { TopBar, type ModalId } from '@/components/TopBar'
 import { Grid } from '@/components/grid/Grid'
 import { FairnessModal } from '@/components/modals/FairnessModal'
@@ -117,8 +117,9 @@ export default function App() {
                 apuesta; sin esto se come el panel inferior en pantallas bajas. */}
             <div
               className="relative mx-auto w-full"
-              style={{ width: 'min(100%, min(52rem, calc((100dvh - 20rem) * 1.2)))' }}
+              style={{ width: 'min(100%, min(52rem, calc((100dvh - 22.5rem) * 1.2)))' }}
             >
+              <FreeSpinsCounter />
               <Grid />
               <FreeSpinsLayer />
 

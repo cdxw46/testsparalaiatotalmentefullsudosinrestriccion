@@ -14,11 +14,19 @@ import { BUY_COST_X, useGame } from '@/store/useGame'
 
 let token = 0
 
-type Beat = 'spawn' | 'gears' | 'wins' | 'blast' | 'refill' | 'intro' | 'gap' | 'outro'
+type Beat = 'spawn' | 'gears' | 'overtake' | 'wins' | 'blast' | 'refill' | 'intro' | 'gap' | 'outro'
 
+/**
+ * Ritmo de la reproduccion.
+ *
+ * La caida se escalona por columnas en la rejilla, asi que estos tiempos
+ * incluyen el margen para que la ultima columna asiente antes de seguir; con
+ * los valores cortos de la primera version las fichas aparecian de golpe y la
+ * tirada se leia como un parpadeo.
+ */
 const PACE: Record<'normal' | 'turbo', Record<Beat, number>> = {
-  normal: { spawn: 560, gears: 820, wins: 950, blast: 760, refill: 430, intro: 2400, gap: 480, outro: 2600 },
-  turbo: { spawn: 220, gears: 300, wins: 340, blast: 300, refill: 170, intro: 1100, gap: 190, outro: 1300 },
+  normal: { spawn: 1000, gears: 980, overtake: 1050, wins: 1100, blast: 900, refill: 760, intro: 2400, gap: 520, outro: 2600 },
+  turbo: { spawn: 340, gears: 320, overtake: 360, wins: 380, blast: 320, refill: 250, intro: 1100, gap: 190, outro: 1300 },
 }
 
 /** Se consulta en cada espera para que el turbo tenga efecto a media tirada. */
@@ -47,15 +55,20 @@ async function playStages(stages: readonly Stage[], carriedWin: number, mine: nu
       clusters: stage.kind === 'wins' ? (stage.clusters ?? null) : null,
       gears: stage.kind === 'gears' ? (stage.gears ?? null) : null,
       blast: stage.kind === 'blast' ? (stage.blast ?? null) : null,
+      overtake: stage.kind === 'overtake' ? (stage.overtake ?? null) : null,
       stageWin: stage.win ?? 0,
     })
 
     switch (stage.kind) {
       case 'spawn':
+      case 'refill':
         for (let column = 0; column < 6; column++) audio.land(column)
         break
       case 'gears':
         audio.gear()
+        break
+      case 'overtake':
+        audio.overtake()
         break
       case 'blast':
         audio.blast()

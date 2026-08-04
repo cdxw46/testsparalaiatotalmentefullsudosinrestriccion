@@ -184,6 +184,14 @@ export const audio = {
     tone({ freq: 150, sweepTo: 330, duration: 0.3, type: 'sawtooth', gain: 0.11, cutoff: 1100, delay: 0.05 })
   },
 
+  /** Adelantamiento: un coche cruzando la rejilla a toda velocidad. */
+  overtake() {
+    rush({ duration: 0.85, gain: 0.22, from: 260, to: 4200, q: 0.8 })
+    tone({ freq: 190, sweepTo: 620, duration: 0.5, type: 'sawtooth', gain: 0.15, cutoff: 1600 })
+    // Efecto Doppler: la nota sube al acercarse y cae al alejarse.
+    tone({ freq: 620, sweepTo: 240, duration: 0.4, type: 'sawtooth', gain: 0.13, cutoff: 1400, delay: 0.45 })
+  },
+
   /** Semaforo de salida al entrar en las vueltas gratis. */
   fanfare() {
     for (let i = 0; i < 3; i++) {

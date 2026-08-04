@@ -43,15 +43,15 @@ export const MIN_CLUSTER = 8
 
 /** Pago en veces la apuesta para 8-9, 10-11 y 12 o mas coincidencias. */
 export const PAYTABLE: Record<PaySymbol, readonly [number, number, number]> = {
-  can: [0.028, 0.056, 0.122],
-  cone: [0.038, 0.075, 0.15],
-  plug: [0.047, 0.094, 0.197],
-  wrench: [0.056, 0.122, 0.244],
-  tyre: [0.075, 0.15, 0.3],
-  rust: [0.103, 0.197, 0.395],
-  duchess: [0.15, 0.29, 0.583],
-  baron: [0.197, 0.395, 0.78],
-  scarlet: [0.29, 0.583, 1.175],
+  can: [0.025, 0.05, 0.11],
+  cone: [0.034, 0.067, 0.134],
+  plug: [0.042, 0.084, 0.175],
+  wrench: [0.05, 0.109, 0.217],
+  tyre: [0.067, 0.134, 0.267],
+  rust: [0.092, 0.175, 0.352],
+  duchess: [0.134, 0.258, 0.519],
+  baron: [0.175, 0.352, 0.694],
+  scarlet: [0.258, 0.519, 1.046],
 }
 
 export function payFor(symbol: PaySymbol, count: number): number {
@@ -114,4 +114,4 @@ export const isPaySymbol = (id: SymbolId): id is PaySymbol =>
  * Ocho millones de tiradas siguen dejando unas decimas de incertidumbre: la
  * cola es tan larga que un solo premio maximo mueve el resultado un 0,4%.
  */
-export const THEORETICAL_RTP = 0.9564
+export const THEORETICAL_RTP = 0.9721

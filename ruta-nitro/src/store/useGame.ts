@@ -10,7 +10,15 @@
 
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { CELLS, type Board, type Blast, type Cluster, type GearReveal, type Upgrade } from '@/game/engine'
+import {
+  CELLS,
+  type Blast,
+  type Board,
+  type Cluster,
+  type GearReveal,
+  type Overtake,
+  type Upgrade,
+} from '@/game/engine'
 import { randomClientSeed, randomSeed, sha256Hex } from '@/game/fair'
 import type { RoundResult } from '@/game/session'
 import type { Lang } from '@/i18n'
@@ -102,6 +110,7 @@ interface GameState {
   clusters: Cluster[] | null
   gears: GearReveal | null
   blast: Blast | null
+  overtake: Overtake | null
 
   /** Premio acumulado de la ronda mientras se reproduce. */
   roundWin: number
@@ -148,6 +157,7 @@ export const useGame = create<GameState>()(
       clusters: null,
       gears: null,
       blast: null,
+      overtake: null,
 
       roundWin: 0,
       stageWin: 0,
@@ -211,6 +221,7 @@ export const useGame = create<GameState>()(
           clusters: null,
           gears: null,
           blast: null,
+          overtake: null,
           roundWin: 0,
           stageWin: 0,
           free: null,
@@ -244,6 +255,7 @@ export const useGame = create<GameState>()(
           clusters: null,
           gears: null,
           blast: null,
+          overtake: null,
           free: null,
           intro: null,
           outro: null,
@@ -275,6 +287,7 @@ export const useGame = create<GameState>()(
           clusters: null,
           gears: null,
           blast: null,
+          overtake: null,
           fair: { ...state.fair, nonce: result.nextNonce },
           history: [entry, ...state.history].slice(0, 100),
           stats: {

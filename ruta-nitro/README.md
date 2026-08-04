@@ -17,7 +17,7 @@ vuelve a ganar en el mismo sitio.
 | Marcas de posicion | x2 al ganar, se duplican hasta x8192 |
 | Aplicacion | el premio se multiplica por la **suma** de las marcas que pisa |
 | Vueltas gratis | 3, 4 o 5 dispersiones -> 7, 8 o 10 vueltas con 1, 2 o 3 mejoras |
-| RTP medido | 95,64% |
+| RTP medido | 97,21% |
 | Premio maximo | 30 000x la apuesta |
 | Volatilidad | extrema |
 
@@ -41,6 +41,15 @@ su simbolo que ya tengan marca.
 **Bidon de nitro.** Cuando la rejilla se queda sin premio, los bidones detonan:
 limpian un 3x3 (5x5 con la mejora) y duplican las marcas que alcanzan. Comodines
 y dispersiones aguantan la explosion.
+
+**Adelantamiento.** Una de cada once tiradas aproximadamente, un corredor cruza
+la rejilla y deja una fila entera del mismo simbolo, que casi siempre la deja a
+tiro de los ocho. Sin este modificador la mayoria de las tiradas eran treinta
+simbolos cayendo y nada mas.
+
+**Anticipacion.** Cuando ya han caido dos dispersiones, las columnas que faltan
+se hacen esperar y laten en verde. Es efecto puro: el resultado ya esta decidido
+desde antes del primer fotograma.
 
 ## Aleatoriedad verificable
 
@@ -74,12 +83,12 @@ npm run simulate -- 8000000
 El calibrado actual (8 millones de tiradas) deja:
 
 ```
-RTP                95,64%
-  juego base       64,00%
-  vueltas gratis   31,64%
-tiradas premiadas  44,82%
-bonus              1 de cada 181
-premio maximo      30 000x  (2 veces en 8 millones)
+RTP                97,21%
+  juego base       59,74%
+  vueltas gratis   37,47%
+tiradas premiadas  48,31%
+bonus              1 de cada 173
+premio maximo      26 881x  (tope 30 000x)
 marca mas alta     x8192
 ```
 

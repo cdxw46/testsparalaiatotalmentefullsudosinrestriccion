@@ -1,0 +1,286 @@
+/*
+ * Rejilla de 6x5 sobre asfalto. Cada casilla es una chapa metalica con su
+ * simbolo; encima va una capa de marcas de neumatico, que pertenecen a la
+ * POSICION y no a la ficha, y por eso se dibujan aparte y no se mueven cuando
+ * los simbolos caen.
+ */
+
+.nitro-grid {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  grid-template-rows: repeat(5, 1fr);
+  gap: clamp(2px, 0.5cqw, 6px);
+  aspect-ratio: 6 / 5;
+  width: 100%;
+  padding: clamp(4px, 1cqw, 10px);
+  border-radius: 14px;
+  background:
+    repeating-linear-gradient(
+      90deg,
+      rgb(255 255 255 / 0.028) 0 2px,
+      transparent 2px 46px
+    ),
+    linear-gradient(180deg, rgb(10 12 17 / 0.86), rgb(6 8 11 / 0.94));
+  box-shadow:
+    inset 0 2px 14px rgb(0 0 0 / 0.75),
+    0 20px 46px -22px rgb(0 0 0 / 0.95);
+  container-type: inline-size;
+}
+
+.nitro-cell {
+  position: relative;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: linear-gradient(168deg, rgb(255 255 255 / 0.07), rgb(255 255 255 / 0.015) 42%, rgb(0 0 0 / 0.28));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.09),
+    inset 0 -1px 0 rgb(0 0 0 / 0.4);
+  overflow: hidden;
+}
+
+/* Rejilla de chapa perforada, muy tenue, para que la casilla no sea un plano liso. */
+.nitro-cell::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 50%, rgb(255 255 255 / 0.05) 0 1px, transparent 1.5px);
+  background-size: 9px 9px;
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.nitro-symbol {
+  position: relative;
+  width: 82%;
+  height: 82%;
+  object-fit: contain;
+  filter: drop-shadow(0 3px 5px rgb(0 0 0 / 0.6));
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* Halo del color del simbolo, encendido solo cuando la casilla participa. */
+.nitro-glow {
+  position: absolute;
+  inset: -12%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgb(var(--accent) / 0.5) 0%, transparent 66%);
+  opacity: 0;
+  transition: opacity 0.18s;
+  pointer-events: none;
+}
+
+.nitro-cell[data-win='true'] .nitro-glow {
+  opacity: 1;
+}
+
+.nitro-cell[data-win='true'] {
+  box-shadow:
+    inset 0 0 0 2px rgb(var(--accent) / 0.85),
+    0 0 22px -2px rgb(var(--accent) / 0.75);
+}
+
+/* Columna en espera: late mientras se hace de rogar tras dos dispersiones. */
+.nitro-cell[data-wait='true'] {
+  animation: nitro-wait 0.55s ease-in-out infinite;
+}
+
+@keyframes nitro-wait {
+  0%,
+  100% {
+    box-shadow:
+      inset 0 0 0 1px rgb(62 224 106 / 0.25),
+      inset 0 1px 0 rgb(255 255 255 / 0.09);
+  }
+  50% {
+    box-shadow:
+      inset 0 0 0 2px rgb(62 224 106 / 0.8),
+      0 0 22px -4px rgb(62 224 106 / 0.7);
+  }
+}
+
+.nitro-cell[data-special='true'] {
+  background: linear-gradient(168deg, rgb(var(--accent) / 0.22), rgb(0 0 0 / 0.35));
+  box-shadow:
+    inset 0 0 0 1px rgb(var(--accent) / 0.5),
+    inset 0 1px 0 rgb(255 255 255 / 0.12);
+}
+
+/*
+ * Marca de neumatico.
+ *
+ * Es un elemento normal de la rejilla colocado en la misma area que la casilla,
+ * no un absoluto suelto: asi queda clavada a su celda pase lo que pase con el
+ * hueco entre columnas. La cifra se apoya en el borde inferior para no taparle
+ * la cara al simbolo, y la casilla se tine del mismo color para que se lea de
+ * un vistazo a que celda pertenece.
+ */
+.nitro-mark {
+  position: relative;
+  display: grid;
+  align-items: end;
+  justify-items: center;
+  padding-bottom: 4%;
+  pointer-events: none;
+  z-index: 3;
+}
+
+/* Goma quemada: se oscurece la parte baja y se pintan dos rodadas. */
+.nitro-mark-skid {
+  position: absolute;
+  inset: 0;
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, transparent 44%, rgb(var(--mark-accent) / 0.22) 100%),
+    linear-gradient(180deg, transparent 40%, rgb(0 0 0 / 0.72) 100%);
+}
+
+.nitro-mark-skid::after {
+  content: '';
+  position: absolute;
+  inset: auto 18% 2%;
+  height: 22%;
+  background: repeating-linear-gradient(90deg, rgb(0 0 0 / 0.55) 0 3px, transparent 3px 8px);
+  filter: blur(0.5px);
+  opacity: 0.7;
+  mask-image: linear-gradient(180deg, transparent, #000 70%);
+}
+
+/* Chapa maciza en el color del escalon: destaca sin comerse el simbolo. */
+.nitro-mark-value {
+  position: relative;
+  font-family: var(--font-display);
+  font-size: clamp(10px, 3cqw, 19px);
+  line-height: 1;
+  padding: 0.2em 0.6em;
+  border-radius: 999px;
+  color: #23140a;
+  background: linear-gradient(180deg, rgb(255 255 255 / 0.55), transparent 42%),
+    rgb(var(--mark-accent, 245 166 35));
+  border: 1px solid rgb(255 255 255 / 0.55);
+  box-shadow:
+    0 2px 6px rgb(0 0 0 / 0.65),
+    0 0 16px -3px rgb(var(--mark-accent, 245 166 35) / 0.9);
+  text-shadow: 0 1px 0 rgb(255 255 255 / 0.35);
+}
+
+/* La casilla marcada lleva su propio anillo, del mismo color que la chapa. */
+.nitro-cell[data-mark='true'] {
+  box-shadow:
+    inset 0 0 0 1.5px rgb(var(--mark-accent) / 0.55),
+    inset 0 -20px 26px -14px rgb(var(--mark-accent) / 0.6),
+    inset 0 1px 0 rgb(255 255 255 / 0.09);
+}
+
+/* El corredor que cruza la fila en un adelantamiento. */
+.nitro-overtake {
+  position: absolute;
+  inset-inline: -12%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 6;
+}
+
+.nitro-overtake-car {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  height: 132%;
+  translate: 0 -50%;
+  filter: drop-shadow(0 0 18px rgb(255 190 90 / 0.85));
+  animation: nitro-overtake-run 0.95s cubic-bezier(0.34, 0.02, 0.2, 1) forwards;
+}
+
+.nitro-overtake-streak {
+  position: absolute;
+  inset-block: 22%;
+  inset-inline: 0;
+  background: linear-gradient(90deg, transparent, rgb(255 200 100 / 0.55), rgb(255 255 255 / 0.25), transparent);
+  animation: nitro-overtake-streak 0.95s ease-out forwards;
+}
+
+@keyframes nitro-overtake-run {
+  0% {
+    opacity: 0;
+    transform: translateX(-30%) scaleX(1.35);
+  }
+  14% {
+    opacity: 1;
+  }
+  86% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(115%) scaleX(1.35);
+  }
+}
+
+@keyframes nitro-overtake-streak {
+  0% {
+    opacity: 0;
+    transform: scaleX(0.2);
+    transform-origin: left;
+  }
+  35% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scaleX(1);
+    transform-origin: left;
+  }
+}
+
+/* Onda del bidon de nitro. */
+.nitro-blast {
+  position: absolute;
+  inset: 0;
+  border-radius: 10px;
+  background: radial-gradient(circle, rgb(255 190 90 / 0.95) 0%, rgb(255 90 40 / 0.6) 40%, transparent 72%);
+  animation: nitro-blast 0.62s ease-out forwards;
+  pointer-events: none;
+  z-index: 4;
+}
+
+@keyframes nitro-blast {
+  0% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  30% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.6);
+  }
+}
+
+/* Estela del cambio de marcha sobre la columna que expande. */
+.nitro-gear-trail {
+  position: absolute;
+  inset: 0;
+  border-radius: 10px;
+  background: linear-gradient(180deg, transparent, rgb(255 210 90 / 0.4), transparent);
+  animation: nitro-trail 0.7s ease-out forwards;
+  pointer-events: none;
+  z-index: 4;
+}
+
+@keyframes nitro-trail {
+  0% {
+    opacity: 0;
+    transform: translateY(-70%);
+  }
+  40% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(70%);
+  }
+}

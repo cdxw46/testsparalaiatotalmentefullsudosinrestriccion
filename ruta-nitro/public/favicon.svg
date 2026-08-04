@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="nitro" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff3c4" />
+      <stop offset="0.45" stop-color="#ffd34d" />
+      <stop offset="1" stop-color="#d4820f" />
+    </linearGradient>
+  </defs>
+
+  <rect width="64" height="64" rx="14" fill="#0d1016" />
+  <rect x="1.5" y="1.5" width="61" height="61" rx="12.5" fill="none" stroke="url(#nitro)" stroke-opacity="0.45" stroke-width="1.5" />
+
+  <!-- Asfalto con marca de derrape -->
+  <path d="M12 46h40" stroke="#252d3a" stroke-width="7" stroke-linecap="round" />
+  <path d="M16 46h9M31 46h8" stroke="#07080c" stroke-width="3" stroke-linecap="round" />
+
+  <!-- Rayo de nitro -->
+  <path d="M35 10 19 34h11l-3 20 18-26H33z" fill="url(#nitro)" />
+</svg>

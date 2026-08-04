@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffe9a8" />
+      <stop offset="0.5" stop-color="#e9b949" />
+      <stop offset="1" stop-color="#a9741f" />
+    </linearGradient>
+    <linearGradient id="jade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4ff29d" />
+      <stop offset="1" stop-color="#10ac60" />
+    </linearGradient>
+  </defs>
+
+  <rect width="64" height="64" rx="14" fill="#0a0e15" />
+  <rect x="1.5" y="1.5" width="61" height="61" rx="12.5" fill="none" stroke="url(#gold)" stroke-opacity="0.45" stroke-width="1.5" />
+
+  <!-- Nicho gotico con el arco redondeado del carrusel -->
+  <path d="M20 34a12 12 0 0 1 24 0v18a2 2 0 0 1-2 2H22a2 2 0 0 1-2-2z" fill="url(#jade)" fill-opacity="0.16" stroke="url(#gold)" stroke-width="2.4" stroke-linejoin="round" />
+
+  <!-- Aguja central -->
+  <path d="M32 6l5 7-5 5-5-5z" fill="url(#gold)" />
+  <rect x="31" y="16" width="2" height="40" rx="1" fill="#e8edf5" fill-opacity="0.8" />
+</svg>

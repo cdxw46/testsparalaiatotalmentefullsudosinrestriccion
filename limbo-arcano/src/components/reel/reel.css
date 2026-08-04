@@ -1,0 +1,308 @@
+/*
+ * Cada casilla es un nicho gotico construido enteramente con CSS: marco
+ * metalico, interior en penumbra, aura del color del escalon y placa con la
+ * cifra. La cercania a la aguja llega como `--k` (0 lejos, 1 justo debajo) y de
+ * ahi salen la escala, el brillo y el resplandor, para que el foco del carrusel
+ * se actualice sin volver a renderizar en React.
+ */
+
+.reel-viewport {
+  position: relative;
+  height: var(--reel-h, clamp(14rem, 40vh, 26rem));
+  overflow: hidden;
+  contain: layout paint style;
+}
+
+.reel-strip {
+  position: absolute;
+  inset-block: 0;
+  left: calc(50% - var(--cell-w) / 2);
+  width: 0;
+  will-change: transform, filter;
+}
+
+.reel-cell {
+  --k: 0;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: var(--cell-w);
+  padding-inline: calc(var(--cell-w) * 0.045);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  transform: translateY(calc(var(--k) * -7px)) scale(calc(1 + var(--k) * 0.075));
+  transform-origin: 50% 62%;
+}
+
+.reel-arch {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  border-radius: 999px 999px calc(var(--cell-w) * 0.07) calc(var(--cell-w) * 0.07);
+  padding: clamp(4px, calc(var(--cell-w) * 0.05), 9px);
+  background:
+    linear-gradient(160deg, rgb(var(--f3) / 0.95) 0%, rgb(var(--f2)) 26%, rgb(var(--f1)) 58%, rgb(var(--f2) / 0.9) 100%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.28),
+    inset 0 -2px 4px rgb(0 0 0 / 0.55),
+    0 8px 22px -10px rgb(0 0 0 / 0.9),
+    0 0 calc(14px + var(--k) * 46px) calc(var(--k) * 3px) rgb(var(--accent) / calc(0.1 + var(--k) * 0.5));
+  filter: brightness(calc(0.82 + var(--k) * 0.38));
+}
+
+/* Vetas del metal: un rayado muy tenue rompe el degradado plano. */
+.reel-arch::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: repeating-linear-gradient(
+    118deg,
+    rgb(255 255 255 / 0.05) 0 1px,
+    transparent 1px 5px
+  );
+  mix-blend-mode: overlay;
+  pointer-events: none;
+}
+
+.reel-niche {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 999px 999px calc(var(--cell-w) * 0.04) calc(var(--cell-w) * 0.04);
+  background:
+    radial-gradient(120% 78% at 50% 96%, rgb(var(--accent) / 0.34) 0%, transparent 62%),
+    linear-gradient(180deg, #010305 0%, rgb(var(--deep)) 62%, #010305 100%);
+  box-shadow: inset 0 2px 12px rgb(0 0 0 / 0.9);
+}
+
+/* Halo detras del personaje: crece y se enciende al acercarse a la aguja. */
+.reel-aura {
+  position: absolute;
+  inset: 8% 4% 0;
+  background: radial-gradient(
+    58% 46% at 50% 68%,
+    rgb(var(--accent) / calc(0.28 + var(--k) * 0.45)) 0%,
+    transparent 70%
+  );
+  filter: blur(calc(4px + var(--k) * 5px));
+}
+
+.reel-art {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 108%;
+  translate: -50% 0;
+  object-fit: contain;
+  object-position: 50% 100%;
+  filter:
+    saturate(calc(0.86 + var(--k) * 0.34))
+    brightness(calc(0.74 + var(--k) * 0.46))
+    drop-shadow(0 6px 10px rgb(0 0 0 / 0.7));
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* Penumbra inferior para asentar al personaje dentro del nicho. */
+.reel-floor {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 34%;
+  background: linear-gradient(180deg, transparent, rgb(0 0 0 / 0.82));
+  pointer-events: none;
+}
+
+.reel-glass {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    122deg,
+    rgb(255 255 255 / 0.16) 0%,
+    rgb(255 255 255 / 0.03) 26%,
+    transparent 46%
+  );
+  pointer-events: none;
+}
+
+/* Remate superior del arco, para que la silueta no acabe en un semicirculo seco. */
+.reel-finial {
+  position: absolute;
+  top: calc(var(--cell-w) * -0.055);
+  left: 50%;
+  width: calc(var(--cell-w) * 0.12);
+  height: calc(var(--cell-w) * 0.12);
+  translate: -50% 0;
+  rotate: 45deg;
+  border-radius: 2px;
+  background: linear-gradient(135deg, rgb(var(--f3)), rgb(var(--f1)));
+  box-shadow: 0 0 calc(var(--k) * 16px) rgb(var(--accent) / calc(var(--k) * 0.8));
+}
+
+.reel-plate {
+  position: relative;
+  z-index: 2;
+  margin-top: calc(var(--cell-w) * -0.13);
+  margin-inline: auto;
+  width: 92%;
+  padding-block: clamp(3px, calc(var(--cell-w) * 0.045), 8px);
+  border-radius: calc(var(--cell-w) * 0.05);
+  text-align: center;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  font-size: clamp(11px, calc(var(--cell-w) * 0.155), 26px);
+  color: color-mix(in srgb, rgb(var(--accent)) calc(55% + var(--k) * 45%), #ffffff);
+  background: linear-gradient(180deg, rgb(10 14 20 / 0.98), rgb(3 5 8 / 0.98));
+  border: 1px solid rgb(var(--accent) / calc(0.22 + var(--k) * 0.6));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.09),
+    0 6px 14px -8px rgb(0 0 0 / 0.9),
+    0 0 calc(var(--k) * 26px) rgb(var(--accent) / calc(var(--k) * 0.45));
+  text-shadow: 0 0 calc(6px + var(--k) * 16px) rgb(var(--accent) / calc(0.3 + var(--k) * 0.5));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: clip;
+}
+
+/* Aguja central: la referencia fija contra la que se lee el resultado. */
+.reel-needle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 3px;
+  translate: -50% 0;
+  z-index: 30;
+  pointer-events: none;
+}
+
+.reel-needle-shaft {
+  position: absolute;
+  inset-block: 4%;
+  left: 50%;
+  width: 2px;
+  translate: -50% 0;
+  border-radius: 2px;
+  background: linear-gradient(
+    180deg,
+    transparent,
+    rgb(255 255 255 / 0.9) 12%,
+    rgb(255 255 255 / 0.55) 55%,
+    transparent
+  );
+  box-shadow: 0 0 12px rgb(var(--needle-accent, 255 255 255) / 0.65);
+  transition: box-shadow 0.5s ease-out;
+}
+
+.reel-needle-head {
+  position: absolute;
+  top: -2px;
+  left: 50%;
+  width: 15px;
+  height: 26px;
+  translate: -50% 0;
+  clip-path: polygon(50% 0%, 100% 42%, 62% 100%, 38% 100%, 0% 42%);
+  background: linear-gradient(180deg, #ffffff, #cfd8e6 45%, #7d8ba1);
+  filter: drop-shadow(0 0 9px rgb(var(--needle-accent, 255 255 255) / 0.75));
+  transition: filter 0.5s ease-out;
+}
+
+.reel-needle-foot {
+  position: absolute;
+  bottom: -3px;
+  left: 50%;
+  width: 13px;
+  height: 13px;
+  translate: -50% 0;
+  rotate: 45deg;
+  border-radius: 2px;
+  background: linear-gradient(135deg, #eef2f8, #8a97ac);
+  filter: drop-shadow(0 0 7px rgb(255 255 255 / 0.5));
+}
+
+/* Los bordes se desvanecen para que las casillas no aparezcan de golpe. */
+.reel-edge {
+  position: absolute;
+  inset-block: 0;
+  width: 16%;
+  z-index: 20;
+  pointer-events: none;
+}
+
+.reel-edge-left {
+  left: 0;
+  background: linear-gradient(90deg, rgb(3 5 8 / 0.95), transparent);
+}
+
+.reel-edge-right {
+  right: 0;
+  background: linear-gradient(270deg, rgb(3 5 8 / 0.95), transparent);
+}
+
+.reel-celebration {
+  position: absolute;
+  inset: 0;
+  z-index: 25;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+/* Onda expansiva desde la aguja. */
+.reel-shock {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(30vw, 260px);
+  aspect-ratio: 1;
+  translate: -50% -50%;
+  border-radius: 999px;
+  border: 2px solid rgb(var(--accent) / 0.85);
+  animation: reel-shock 0.72s cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
+}
+
+/* Tinte breve de todo el visor con el color del escalon. */
+.reel-tint {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(46% 60% at 50% 55%, rgb(var(--accent) / calc(var(--power) * 0.8)) 0%, transparent 68%);
+  animation: reel-tint 0.9s ease-out forwards;
+}
+
+.reel-spark {
+  position: absolute;
+  bottom: 26%;
+  border-radius: 999px;
+  background: rgb(var(--accent));
+  box-shadow: 0 0 10px 1px rgb(var(--accent) / 0.9);
+  animation-name: limbo-drift;
+  animation-timing-function: cubic-bezier(0.2, 0.6, 0.4, 1);
+  animation-fill-mode: forwards;
+}
+
+@keyframes reel-shock {
+  0% {
+    opacity: 0.9;
+    scale: 0.2;
+  }
+  100% {
+    opacity: 0;
+    scale: 1.9;
+  }
+}
+
+@keyframes reel-tint {
+  0% {
+    opacity: 0;
+  }
+  22% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}

@@ -27,6 +27,8 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     level=logging.INFO,
 )
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 log = logging.getLogger("telegram-5sim-bot")
 
 FIVESIM_API_TOKEN = os.getenv("FIVESIM_API_TOKEN", "").strip()

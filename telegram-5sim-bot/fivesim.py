@@ -32,15 +32,19 @@ class FiveSim:
 
     async def _request(self, method: str, path: str, **kwargs: Any) -> Any:
         response = await self._client.request(method, path, **kwargs)
-        text = response.text.strip()
+        body = response.text.strip()
         if response.status_code >= 400:
-            raise FiveSimError(text or response.reason_phrase, response.status_code)
-        if not text:
+            raise FiveSimError(body or response.reason_phrase, response.status_code)
+        if not body:
             return None
         try:
-            return response.json()
-        except ValueError:
-            return text
+            data = response.json()
+        except ValueError as exc:
+            raise FiveSimError(body) from exc
+        # 5sim sometimes returns a plain JSON string error with HTTP 200
+        if isinstance(data, str):
+            raise FiveSimError(data)
+        return data
 
     async def profile(self) -> dict[str, Any]:
         return await self._request("GET", "/user/profile")
@@ -65,14 +69,22 @@ class FiveSim:
         country: str,
         product: str,
         max_price: float,
-    ) -> tuple[str, float] | None:
-        """Return (operator, cost) with stock and cost <= max_price, cheapest first."""
+        min_rate: float = 0.0,
+    ) -> tuple[str, float, float] | None:
+        """Return (operator, cost, rate) with stock and cost<=max.
+
+        Prefer higher delivery rate, then cheaper price.
+        Operators below min_rate are only used if nothing better exists.
+        """
         country_node = prices_payload.get(country, prices_payload)
+        if not isinstance(country_node, dict):
+            return None
         product_node = country_node.get(product, country_node)
         if not isinstance(product_node, dict):
             return None
 
-        candidates: list[tuple[float, int, str]] = []
+        good: list[tuple[float, float, int, str]] = []
+        fallback: list[tuple[float, float, int, str]] = []
         for operator, info in product_node.items():
             if not isinstance(info, dict):
                 continue
@@ -81,14 +93,25 @@ class FiveSim:
                 count = int(info.get("count", 0))
             except (TypeError, ValueError):
                 continue
-            if count > 0 and cost <= max_price:
-                candidates.append((cost, count, operator))
+            if count <= 0 or cost > max_price:
+                continue
+            rate_raw = info.get("rate")
+            try:
+                rate = float(rate_raw) if rate_raw is not None else 0.0
+            except (TypeError, ValueError):
+                rate = 0.0
+            row = (rate, cost, count, operator)
+            if rate >= min_rate and rate > 0:
+                good.append(row)
+            else:
+                fallback.append(row)
 
+        candidates = good or fallback
         if not candidates:
             return None
-        candidates.sort(key=lambda row: (row[0], -row[1]))
-        cost, _count, operator = candidates[0]
-        return operator, cost
+        candidates.sort(key=lambda row: (-row[0], row[1], -row[2]))
+        rate, cost, _count, operator = candidates[0]
+        return operator, cost, rate
 
     async def buy_activation(
         self, country: str, operator: str, product: str

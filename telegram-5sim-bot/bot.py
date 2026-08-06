@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Telegram bot: buy Spain WhatsApp numbers via 5sim and relay SMS."""
+"""Telegram bot: buy Spain WhatsApp numbers via HeroSMS and relay SMS."""
 
 from __future__ import annotations
 
@@ -8,14 +8,13 @@ import logging
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
 
 from dotenv import load_dotenv
 from telegram import BotCommand, Update
 from telegram.constants import ParseMode
 from telegram.ext import Application, CommandHandler, ContextTypes
 
-from fivesim import FiveSim, FiveSimError
+from herosms import HeroSMS, HeroSMSError
 
 load_dotenv(Path(__file__).resolve().parent / ".env")
 
@@ -25,29 +24,26 @@ logging.basicConfig(
 )
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
-log = logging.getLogger("telegram-5sim-bot")
+log = logging.getLogger("telegram-herosms-bot")
 
-FIVESIM_API_TOKEN = os.getenv("FIVESIM_API_TOKEN", "").strip()
+HEROSMS_API_KEY = os.getenv("HEROSMS_API_KEY", "").strip()
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+COUNTRY_ID = int(os.getenv("COUNTRY_ID", "56"))  # Spain
 COUNTRY = os.getenv("COUNTRY", "spain").strip()
+SERVICE_CODE = os.getenv("SERVICE_CODE", "wa").strip()  # WhatsApp
 PRODUCT = os.getenv("PRODUCT", "whatsapp").strip()
-OPERATOR_PREF = os.getenv("OPERATOR", "any").strip()
 MAX_PRICE = float(os.getenv("MAX_PRICE", "3"))
-MIN_RATE = float(os.getenv("MIN_RATE", "1"))
 SMS_POLL_SECONDS = float(os.getenv("SMS_POLL_SECONDS", "5"))
 SMS_TIMEOUT_SECONDS = float(os.getenv("SMS_TIMEOUT_SECONDS", "1200"))
-# If 5sim marks RECEIVED without SMS body, wait this long then auto-ban.
-EMPTY_RECEIVED_GRACE_SECONDS = float(os.getenv("EMPTY_RECEIVED_GRACE_SECONDS", "0"))
 PROGRESS_EVERY_SECONDS = float(os.getenv("PROGRESS_EVERY_SECONDS", "30"))
 
 
 @dataclass
 class ChatOrder:
-    order_id: int
+    order_id: str
     phone: str
-    product: str
-    country: str
-    operator: str
+    service: str
+    country_id: int
     price: float | None
     chat_id: int
     message_thread_id: int | None = None
@@ -60,59 +56,28 @@ BUY_LOCKS: dict[int, asyncio.Lock] = {}
 
 def require_config() -> None:
     missing = []
-    if not FIVESIM_API_TOKEN:
-        missing.append("FIVESIM_API_TOKEN")
+    if not HEROSMS_API_KEY:
+        missing.append("HEROSMS_API_KEY")
     if not TELEGRAM_BOT_TOKEN:
         missing.append("TELEGRAM_BOT_TOKEN")
     if missing:
-        raise SystemExit(
-            "Faltan variables en .env: "
-            + ", ".join(missing)
-            + "\nCrea un bot con @BotFather y pon el token en TELEGRAM_BOT_TOKEN."
-        )
+        raise SystemExit("Faltan variables en .env: " + ", ".join(missing))
 
 
-def api(context: ContextTypes.DEFAULT_TYPE) -> FiveSim:
-    return context.application.bot_data["fivesim"]
-
-
-def extract_sms(sms_list: Any) -> tuple[str, str]:
-    """Return (code, readable_text). Only real SMS content counts."""
-    if not sms_list or not isinstance(sms_list, list):
-        return "", ""
-    codes: list[str] = []
-    lines: list[str] = []
-    for item in sms_list:
-        if not isinstance(item, dict):
-            continue
-        code = str(item.get("code") or "").strip()
-        text = str(item.get("text") or item.get("message") or "").strip()
-        sender = str(item.get("sender") or "").strip()
-        if code:
-            codes.append(code)
-        bit = " · ".join(x for x in [code, text, sender] if x)
-        if bit:
-            lines.append(bit)
-    return (codes[0] if codes else ""), "\n".join(lines)
-
-
-def has_real_sms(data: dict[str, Any]) -> bool:
-    code, text = extract_sms(data.get("sms"))
-    return bool(code or text)
+def api(context: ContextTypes.DEFAULT_TYPE) -> HeroSMS:
+    return context.application.bot_data["herosms"]
 
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.effective_message.reply_text(
-        "Bot 5sim listo.\n\n"
-        f"Compra: {PRODUCT} / {COUNTRY} / max ${MAX_PRICE:.2f} / prioridad rate>0\n\n"
+        "Bot HeroSMS listo.\n\n"
+        f"Compra: {PRODUCT} / {COUNTRY} (id {COUNTRY_ID}) / max ${MAX_PRICE:.2f}\n\n"
         "Comandos:\n"
         "/buy — compra número y espera SMS\n"
-        "/status — estado del último pedido\n"
-        "/ban — banea el número (si no llega SMS)\n"
-        "/balance — saldo 5sim\n"
-        "/stock — ver operadores\n"
-        "/help — ayuda\n\n"
-        "Solo avisa SMS si llega código/texto real."
+        "/status — estado del pedido\n"
+        "/ban — cancela/banea si no llega SMS (refund)\n"
+        "/balance — saldo HeroSMS\n"
+        "/help — ayuda"
     )
 
 
@@ -122,14 +87,19 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def cmd_balance(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     try:
-        profile = await api(context).profile()
-    except FiveSimError as exc:
-        await update.effective_message.reply_text(f"Error 5sim: {exc}")
+        bal = await api(context).balance()
+        price = await api(context).get_price(SERVICE_CODE, COUNTRY_ID)
+    except HeroSMSError as exc:
+        await update.effective_message.reply_text(f"Error HeroSMS: {exc}")
         return
-    balance = profile.get("balance", "?")
-    rating = profile.get("rating", "?")
+    stock = "?"
+    cost = "?"
+    if price:
+        stock = str(price.get("count"))
+        cost = f"${float(price.get('cost', 0)):.4f}"
     await update.effective_message.reply_text(
-        f"Saldo: ${balance}\nRating: {rating}"
+        f"Saldo HeroSMS: ${bal:.4f}\n"
+        f"{PRODUCT}/{COUNTRY}: {cost} · stock {stock}"
     )
 
 
@@ -143,127 +113,62 @@ async def _stop_poll(chat_id: int) -> None:
             pass
 
 
-async def _auto_ban(fivesim: FiveSim, order_id: int) -> dict[str, Any] | None:
-    try:
-        return await fivesim.ban_order(order_id)
-    except FiveSimError as exc:
-        log.warning("auto-ban failed for %s: %s", order_id, exc)
-        return None
-
-
 async def _poll_sms(app: Application, chat_order: ChatOrder) -> None:
-    fivesim: FiveSim = app.bot_data["fivesim"]
-    deadline = asyncio.get_running_loop().time() + SMS_TIMEOUT_SECONDS
-    empty_received_since: float | None = None
-    last_status = None
-    last_progress = asyncio.get_running_loop().time()
-    started = last_progress
+    herosms: HeroSMS = app.bot_data["herosms"]
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + SMS_TIMEOUT_SECONDS
+    started = loop.time()
+    last_progress = started
 
     try:
-        while asyncio.get_running_loop().time() < deadline:
+        while loop.time() < deadline:
             try:
-                data = await fivesim.check_order(chat_order.order_id)
-            except FiveSimError as exc:
-                log.warning("check failed: %s", exc)
+                status, code = await herosms.get_status(chat_order.order_id)
+            except HeroSMSError as exc:
+                log.warning("getStatus failed: %s", exc)
                 await asyncio.sleep(SMS_POLL_SECONDS)
                 continue
 
-            status = str(data.get("status") or "")
-            if status != last_status:
-                last_status = status
-                log.info(
-                    "order %s status=%s sms_len=%s",
-                    chat_order.order_id,
-                    status,
-                    len(data.get("sms") or []),
-                )
-
-            # ONLY success when there is real SMS content.
-            if has_real_sms(data):
-                phone = data.get("phone") or chat_order.phone
-                code, sms_text = extract_sms(data.get("sms"))
-                msg = (
-                    f"✅ SMS recibido\n"
-                    f"Número: `{phone}`\n"
-                    f"Pedido: `{chat_order.order_id}`\n"
-                )
-                if code:
-                    msg += f"Código: `{code}`\n"
-                if sms_text:
-                    msg += f"\n{sms_text}"
+            if status == "OK" and code:
+                try:
+                    await herosms.finish(chat_order.order_id)
+                except HeroSMSError as exc:
+                    log.warning("finish failed: %s", exc)
                 await app.bot.send_message(
                     chat_id=chat_order.chat_id,
-                    text=msg,
+                    text=(
+                        f"✅ SMS recibido\n"
+                        f"Número: `{chat_order.phone}`\n"
+                        f"Pedido: `{chat_order.order_id}`\n"
+                        f"Código: `{code}`"
+                    ),
                     parse_mode=ParseMode.MARKDOWN,
                     message_thread_id=chat_order.message_thread_id,
                 )
                 return
 
-            # RECEIVED without SMS body yet: keep polling, do not celebrate.
-            # Auto-ban only if EMPTY_RECEIVED_GRACE_SECONDS > 0.
-            if status == "RECEIVED" and EMPTY_RECEIVED_GRACE_SECONDS > 0:
-                now = asyncio.get_running_loop().time()
-                if empty_received_since is None:
-                    empty_received_since = now
-                    await app.bot.send_message(
-                        chat_id=chat_order.chat_id,
-                        text=(
-                            "⚠️ 5sim marcó RECEIVED pero aún no hay SMS/código.\n"
-                            f"Sigo consultando cada {int(SMS_POLL_SECONDS)}s..."
-                        ),
-                        message_thread_id=chat_order.message_thread_id,
-                    )
-                elif now - empty_received_since >= EMPTY_RECEIVED_GRACE_SECONDS:
-                    banned = await _auto_ban(fivesim, chat_order.order_id)
-                    st = banned.get("status") if isinstance(banned, dict) else "BANNED?"
-                    await app.bot.send_message(
-                        chat_id=chat_order.chat_id,
-                        text=(
-                            "🚫 Timeout de RECEIVED sin SMS.\n"
-                            f"Auto-ban pedido `{chat_order.order_id}` → `{st}`"
-                        ),
-                        parse_mode=ParseMode.MARKDOWN,
-                        message_thread_id=chat_order.message_thread_id,
-                    )
-                    return
-            elif status != "RECEIVED":
-                empty_received_since = None
+            if status == "CANCEL":
+                await app.bot.send_message(
+                    chat_id=chat_order.chat_id,
+                    text=(
+                        f"Pedido `{chat_order.order_id}` cancelado en HeroSMS."
+                    ),
+                    parse_mode=ParseMode.MARKDOWN,
+                    message_thread_id=chat_order.message_thread_id,
+                )
+                return
 
-            if status in {"CANCELED", "TIMEOUT", "BANNED", "FINISHED"}:
-                # FINISHED without SMS is also not success for us
-                if status == "FINISHED" and not has_real_sms(data):
-                    await app.bot.send_message(
-                        chat_id=chat_order.chat_id,
-                        text=(
-                            f"Pedido `{chat_order.order_id}` en FINISHED sin SMS. "
-                            "Revisa /balance."
-                        ),
-                        parse_mode=ParseMode.MARKDOWN,
-                        message_thread_id=chat_order.message_thread_id,
-                    )
-                    return
-                if status != "FINISHED":
-                    await app.bot.send_message(
-                        chat_id=chat_order.chat_id,
-                        text=(
-                            f"Pedido `{chat_order.order_id}` finalizó con estado: {status}"
-                        ),
-                        parse_mode=ParseMode.MARKDOWN,
-                        message_thread_id=chat_order.message_thread_id,
-                    )
-                    return
-
-            now = asyncio.get_running_loop().time()
+            now = loop.time()
             if now - last_progress >= PROGRESS_EVERY_SECONDS:
                 last_progress = now
                 waited = int(now - started)
                 await app.bot.send_message(
                     chat_id=chat_order.chat_id,
                     text=(
-                        f"⌛ Sigo esperando SMS... ({waited}s)\n"
+                        f"⌛ Esperando SMS... ({waited}s)\n"
                         f"Número: `{chat_order.phone}`\n"
                         f"Pedido: `{chat_order.order_id}`\n"
-                        f"5sim sigue sin código (sms vacío)."
+                        f"Estado: `{status}`"
                     ),
                     parse_mode=ParseMode.MARKDOWN,
                     message_thread_id=chat_order.message_thread_id,
@@ -271,16 +176,18 @@ async def _poll_sms(app: Application, chat_order: ChatOrder) -> None:
 
             await asyncio.sleep(SMS_POLL_SECONDS)
 
-        # timeout: ban to try refund
-        banned = await _auto_ban(fivesim, chat_order.order_id)
-        st = banned.get("status") if isinstance(banned, dict) else "timeout"
+        # timeout -> cancel for refund
+        try:
+            cancel_res = await herosms.cancel(chat_order.order_id)
+        except HeroSMSError as exc:
+            cancel_res = str(exc)
         await app.bot.send_message(
             chat_id=chat_order.chat_id,
             text=(
-                f"⌛ Timeout sin SMS real ({int(SMS_TIMEOUT_SECONDS)}s).\n"
+                f"⌛ Timeout sin SMS ({int(SMS_TIMEOUT_SECONDS)}s).\n"
                 f"Número: `{chat_order.phone}`\n"
                 f"Pedido: `{chat_order.order_id}`\n"
-                f"Auto-ban: `{st}`"
+                f"Auto-cancel: `{cancel_res}`"
             ),
             parse_mode=ParseMode.MARKDOWN,
             message_thread_id=chat_order.message_thread_id,
@@ -291,7 +198,7 @@ async def _poll_sms(app: Application, chat_order: ChatOrder) -> None:
         log.exception("poll crashed")
         await app.bot.send_message(
             chat_id=chat_order.chat_id,
-            text="Error interno esperando el SMS. Prueba /status o /ban.",
+            text="Error interno esperando SMS. Usa /status o /ban.",
             message_thread_id=chat_order.message_thread_id,
         )
 
@@ -311,164 +218,67 @@ async def cmd_buy(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         existing = ORDERS.get(chat.id)
         if existing and existing.task and not existing.task.done():
             await message.reply_text(
-                f"Ya hay un pedido activo: `{existing.order_id}` (`{existing.phone}`).\n"
+                f"Ya hay pedido activo: `{existing.order_id}` (`{existing.phone}`).\n"
                 f"Usa /status, /ban o espera el SMS.",
                 parse_mode=ParseMode.MARKDOWN,
             )
             return
 
         status_msg = await message.reply_text(
-            f"Buscando {PRODUCT} en {COUNTRY} ≤ ${MAX_PRICE:.2f}..."
+            f"Buscando {PRODUCT} en {COUNTRY} ≤ ${MAX_PRICE:.2f} (HeroSMS)..."
         )
+        herosms = api(context)
 
-        fivesim = api(context)
         try:
-            try:
-                await fivesim.set_max_price(PRODUCT, MAX_PRICE)
-            except FiveSimError as exc:
-                log.warning("max-price set failed: %s", exc)
-
-            prices = await fivesim.prices(COUNTRY, PRODUCT)
-            ops = fivesim.list_operators(prices, COUNTRY, PRODUCT, MAX_PRICE)
-            good_ops = [o for o in ops if o[2] >= MIN_RATE]
-            junk_ops = [o for o in ops if o[2] < MIN_RATE]
-            # Paid numbers only. Never buy rate-0 junk by default (no SMS ever arrives).
-            candidates: list[tuple[str, float | None, float | None]] = []
-            for operator, cost, rate, _count in good_ops:
-                candidates.append((operator, cost, rate))
-            if good_ops:
-                candidates.append(("any", None, None))
-            # de-dup preserving order
-            seen: set[str] = set()
-            uniq: list[tuple[str, float | None, float | None]] = []
-            for row in candidates:
-                if row[0] in seen:
-                    continue
-                seen.add(row[0])
-                uniq.append(row)
-            candidates = uniq
-
-            if not good_ops:
-                junk = ", ".join(
-                    f"{op} ${cost:.2f} rate={rate:.1f}%" for op, cost, rate, _c in junk_ops[:5]
-                ) or "ninguno"
+            price_info = await herosms.get_price(SERVICE_CODE, COUNTRY_ID)
+            if not price_info or int(price_info.get("count") or 0) <= 0:
                 await status_msg.edit_text(
-                    f"No compro: en {COUNTRY}/{PRODUCT} <= ${MAX_PRICE:.2f} "
-                    f"solo hay operadores basura (rate < {MIN_RATE:.0f}%).\n"
-                    f"Ej: {junk}\n\n"
-                    "Esos numeros NUNCA entregan SMS (por eso esperas 20 min en vano).\n"
-                    "Opciones: subir MAX_PRICE, bajar MIN_RATE (no recomendado), "
-                    "o esperar stock con rate > 0."
+                    f"Sin stock HeroSMS de {PRODUCT}/{COUNTRY}."
+                )
+                return
+            cost = float(price_info["cost"])
+            if cost > MAX_PRICE:
+                await status_msg.edit_text(
+                    f"Precio actual ${cost:.4f} > max ${MAX_PRICE:.2f}. "
+                    f"Stock: {price_info.get('count')}"
                 )
                 return
 
-            order: dict[str, Any] | None = None
-            chosen_op = "any"
-            chosen_cost: float | None = None
-            chosen_rate: float | None = None
-            attempts: list[str] = []
-            max_attempts = min(6, len(candidates))
-
-            for idx, (operator, cost, rate) in enumerate(candidates[:max_attempts]):
-                label = operator if cost is None else f"{operator} ~${cost:.4f} rate={rate:.2f}%"
-                await status_msg.edit_text(
-                    f"Intento {idx+1}/{max_attempts}: {PRODUCT}/{COUNTRY}/{label}"
-                )
-                try:
-                    bought = await fivesim.buy_activation(COUNTRY, operator, PRODUCT)
-                except FiveSimError as exc:
-                    msg = str(exc)
-                    attempts.append(f"{operator}: {msg}")
-                    log.warning("buy failed %s: %s", operator, msg)
-                    # no free phones / not enough money / etc -> try next
-                    continue
-
-                if not isinstance(bought, dict):
-                    attempts.append(f"{operator}: bad response {bought}")
-                    continue
-
-                oid = bought.get("id")
-                phone = bought.get("phone")
-                status = str(bought.get("status") or "")
-                if not oid or not phone:
-                    attempts.append(f"{operator}: incomplete {bought}")
-                    continue
-
-                # Accept the number even if 5sim status is RECEIVED.
-                # We only care about real SMS code/text while polling.
-                order = bought
-                chosen_op = str(bought.get("operator") or operator)
-                chosen_cost = float(bought.get("price") if bought.get("price") is not None else (cost or 0))
-                chosen_rate = rate
-                break
-
-            if order is None:
-                detail = "\n".join(f"• {a}" for a in attempts[:8]) or "sin detalle"
-                await status_msg.edit_text(
-                    "No pude comprar un numero de pago ahora.\n"
-                    f"{PRODUCT}/{COUNTRY} <= ${MAX_PRICE:.2f}\n\n"
-                    f"{detail}\n\n"
-                    "Nota: en 5sim 'no free phones' significa SIN STOCK"
-                    " (no son numeros gratis).\n"
-                    "Prueba /buy mas tarde o sube MAX_PRICE."
-                )
-                return
-
-        except FiveSimError as exc:
+            await status_msg.edit_text(
+                f"Comprando {PRODUCT}/{COUNTRY} ~${cost:.4f} "
+                f"(stock {price_info.get('count')})..."
+            )
+            order = await herosms.buy_number(
+                SERVICE_CODE, COUNTRY_ID, max_price=MAX_PRICE
+            )
+        except HeroSMSError as exc:
             await status_msg.edit_text(f"Error al comprar: {exc}")
             return
 
-        order_id = order.get("id")
-        phone = order.get("phone")
-        if not order_id or not phone:
-            await status_msg.edit_text(f"Respuesta inesperada de 5sim: {order}")
-            return
-
-        if has_real_sms(order):
-            code, sms_text = extract_sms(order.get("sms"))
-            msg = (
-                f"✅ Número con SMS ya incluido\n"
-                f"Número: `{phone}`\nPedido: `{order_id}`\n"
-            )
-            if code:
-                msg += f"Código: `{code}`\n"
-            if sms_text:
-                msg += f"\n{sms_text}"
-            await status_msg.edit_text(msg, parse_mode=ParseMode.MARKDOWN)
-            return
-
-        price = order.get("price", chosen_cost)
         chat_order = ChatOrder(
-            order_id=int(order_id),
-            phone=str(phone),
-            product=PRODUCT,
-            country=COUNTRY,
-            operator=chosen_op,
-            price=float(price) if price is not None else None,
+            order_id=str(order.id),
+            phone=order.phone,
+            service=SERVICE_CODE,
+            country_id=COUNTRY_ID,
+            price=cost,
             chat_id=chat.id,
             message_thread_id=message.message_thread_id,
         )
         await _stop_poll(chat.id)
         task = asyncio.create_task(
             _poll_sms(context.application, chat_order),
-            name=f"sms-poll-{order_id}",
+            name=f"sms-poll-{order.id}",
         )
         chat_order.task = task
         ORDERS[chat.id] = chat_order
 
-        price_txt = f"${float(price):.4f}" if price is not None else "?"
-        rate_txt = f"{chosen_rate:.2f}%" if chosen_rate is not None else "?"
         await status_msg.edit_text(
-            f"📱 Número comprado — úsalo ya en WhatsApp\n"
-            f"Número: `{phone}`\n"
-            f"Pedido: `{order_id}`\n"
-            f"Operador: `{chat_order.operator}`\n"
-            f"Precio: {price_txt}\n"
-            f"Rate: {rate_txt}\n"
+            f"📱 Número comprado (HeroSMS)\n"
+            f"Número: `{order.phone}`\n"
+            f"Pedido: `{order.id}`\n"
+            f"Precio: ~${cost:.4f}\n"
             f"Producto: {PRODUCT} / {COUNTRY}\n\n"
-            f"⏳ Esperando el SMS de WhatsApp...\n"
-            f"Consulto 5sim cada {int(SMS_POLL_SECONDS)}s hasta que llegue el código.\n"
-            f"(Ignoro el estado RECEIVED vacío; solo cuenta SMS con texto/código)\n"
+            f"⏳ Esperando SMS... consulto cada {int(SMS_POLL_SECONDS)}s\n"
             f"Si no llega: /ban",
             parse_mode=ParseMode.MARKDOWN,
         )
@@ -485,30 +295,25 @@ async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     if context.args:
         order_id = context.args[0]
     if not order_id:
-        await message.reply_text("No hay pedido en este chat. Usa /buy.")
+        await message.reply_text("No hay pedido. Usa /buy.")
         return
 
     try:
-        data = await api(context).check_order(order_id)
-    except FiveSimError as exc:
+        status, code = await api(context).get_status(order_id)
+    except HeroSMSError as exc:
         await message.reply_text(f"Error: {exc}")
         return
 
-    code, sms_text = extract_sms(data.get("sms"))
+    phone = order.phone if order else "?"
     text = (
-        f"Pedido: `{data.get('id', order_id)}`\n"
-        f"Número: `{data.get('phone', '?')}`\n"
-        f"Estado: `{data.get('status', '?')}`\n"
-        f"Producto: `{data.get('product', '?')}`\n"
-        f"País: `{data.get('country', '?')}`\n"
-        f"SMS count: `{len(data.get('sms') or [])}`\n"
+        f"Pedido: `{order_id}`\n"
+        f"Número: `{phone}`\n"
+        f"Estado: `{status}`\n"
     )
     if code:
-        text += f"Código: `{code}`\n"
-    if sms_text:
-        text += f"\nSMS:\n{sms_text}"
+        text += f"Código: `{code}`"
     else:
-        text += "\nAún sin SMS real."
+        text += "Aún sin SMS."
     await message.reply_text(text, parse_mode=ParseMode.MARKDOWN)
 
 
@@ -523,94 +328,59 @@ async def cmd_ban(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if context.args:
         order_id = context.args[0]
     if not order_id:
-        await message.reply_text("No hay pedido para banear. Usa /buy o /ban <id>.")
+        await message.reply_text("No hay pedido. Usa /buy o /ban <id>.")
         return
 
     await _stop_poll(chat.id)
-    fivesim = api(context)
+    herosms = api(context)
     try:
-        data = await fivesim.ban_order(order_id)
-    except FiveSimError as exc:
-        # fallback cancel
-        try:
-            data = await fivesim.cancel_order(order_id)
-        except FiveSimError as exc2:
-            await message.reply_text(f"Error al banear/cancelar: {exc} / {exc2}")
-            return
+        res = await herosms.cancel(order_id)
+        bal = await herosms.balance()
+    except HeroSMSError as exc:
+        await message.reply_text(f"Error al cancelar: {exc}")
+        return
 
-    status = data.get("status", "BANNED") if isinstance(data, dict) else "BANNED"
-    phone = ""
-    if isinstance(data, dict):
-        phone = str(data.get("phone") or (order.phone if order else ""))
-    elif order:
-        phone = order.phone
-
-    try:
-        profile = await fivesim.profile()
-        bal = profile.get("balance", "?")
-    except FiveSimError:
-        bal = "?"
-
+    phone = order.phone if order else "?"
     await message.reply_text(
-        f"🚫 Número baneado/cancelado\n"
+        f"🚫 Pedido cancelado (refund HeroSMS)\n"
         f"Pedido: `{order_id}`\n"
-        f"Número: `{phone or '?'}`\n"
-        f"Estado: `{status}`\n"
-        f"Saldo ahora: `${bal}`",
+        f"Número: `{phone}`\n"
+        f"Respuesta: `{res}`\n"
+        f"Saldo ahora: `${bal:.4f}`",
         parse_mode=ParseMode.MARKDOWN,
     )
 
 
-async def cmd_stock(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    try:
-        prices = await api(context).prices(COUNTRY, PRODUCT)
-        ops = api(context).list_operators(prices, COUNTRY, PRODUCT, MAX_PRICE)
-    except FiveSimError as exc:
-        await update.effective_message.reply_text(f"Error: {exc}")
-        return
-    if not ops:
-        await update.effective_message.reply_text(
-            f"Sin stock ≤ ${MAX_PRICE:.2f} para {PRODUCT}/{COUNTRY}"
-        )
-        return
-    lines = [f"Stock {PRODUCT}/{COUNTRY} ≤ ${MAX_PRICE:.2f}:"]
-    for op, cost, rate, count in ops[:20]:
-        flag = "⚠" if rate <= 0 else "✓"
-        lines.append(f"{flag} `{op}` ${cost:.4f} rate={rate} qty={count}")
-    await update.effective_message.reply_text("\n".join(lines), parse_mode=ParseMode.MARKDOWN)
-
-
 async def on_startup(app: Application) -> None:
-    fivesim = FiveSim(FIVESIM_API_TOKEN)
-    app.bot_data["fivesim"] = fivesim
+    herosms = HeroSMS(HEROSMS_API_KEY)
+    app.bot_data["herosms"] = herosms
     await app.bot.set_my_commands(
         [
             BotCommand("buy", f"Comprar {PRODUCT} {COUNTRY} (max ${MAX_PRICE:.0f})"),
-            BotCommand("status", "Ver estado del pedido / SMS"),
-            BotCommand("ban", "Banear número si no llega SMS"),
-            BotCommand("balance", "Ver saldo 5sim"),
-            BotCommand("stock", "Ver operadores/stock"),
+            BotCommand("status", "Ver estado / SMS"),
+            BotCommand("ban", "Cancelar si no llega SMS"),
+            BotCommand("balance", "Saldo HeroSMS"),
             BotCommand("help", "Ayuda"),
         ]
     )
     try:
-        profile = await fivesim.profile()
+        bal = await herosms.balance()
+        price = await herosms.get_price(SERVICE_CODE, COUNTRY_ID)
         log.info(
-            "5sim OK balance=%s max_price=%s min_rate=%s",
-            profile.get("balance"),
-            MAX_PRICE,
-            MIN_RATE,
+            "HeroSMS OK balance=%s spain_wa=%s",
+            bal,
+            price,
         )
-    except FiveSimError as exc:
-        log.error("No se pudo validar token 5sim: %s", exc)
+    except HeroSMSError as exc:
+        log.error("HeroSMS token invalid: %s", exc)
 
 
 async def on_shutdown(app: Application) -> None:
     for chat_id in list(ORDERS):
         await _stop_poll(chat_id)
-    fivesim: FiveSim | None = app.bot_data.get("fivesim")
-    if fivesim:
-        await fivesim.aclose()
+    herosms: HeroSMS | None = app.bot_data.get("herosms")
+    if herosms:
+        await herosms.aclose()
 
 
 def main() -> None:
@@ -624,16 +394,14 @@ def main() -> None:
     )
     app.add_handler(CommandHandler(["start", "help"], cmd_start))
     app.add_handler(CommandHandler("balance", cmd_balance))
-    app.add_handler(CommandHandler("stock", cmd_stock))
     app.add_handler(CommandHandler("buy", cmd_buy))
     app.add_handler(CommandHandler("status", cmd_status))
     app.add_handler(CommandHandler("ban", cmd_ban))
     log.info(
-        "Starting bot country=%s product=%s max_price=%s min_rate=%s",
-        COUNTRY,
-        PRODUCT,
+        "Starting HeroSMS bot country_id=%s service=%s max_price=%s",
+        COUNTRY_ID,
+        SERVICE_CODE,
         MAX_PRICE,
-        MIN_RATE,
     )
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 

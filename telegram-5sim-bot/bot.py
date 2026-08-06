@@ -109,6 +109,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "/status — estado del último pedido\n"
         "/ban — banea el número (si no llega SMS)\n"
         "/balance — saldo 5sim\n"
+        "/stock — ver operadores\n"
         "/help — ayuda\n\n"
         "Solo avisa SMS si llega código/texto real."
     )
@@ -298,7 +299,7 @@ async def cmd_buy(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             return
 
         status_msg = await message.reply_text(
-            f"Buscando {PRODUCT} en {COUNTRY} ≤ ${MAX_PRICE:.2f} y prioridad rate>0..."
+            f"Buscando {PRODUCT} en {COUNTRY} ≤ ${MAX_PRICE:.2f}..."
         )
 
         fivesim = api(context)
@@ -309,49 +310,87 @@ async def cmd_buy(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 log.warning("max-price set failed: %s", exc)
 
             prices = await fivesim.prices(COUNTRY, PRODUCT)
-            picked = fivesim.pick_operator(
-                prices, COUNTRY, PRODUCT, MAX_PRICE, min_rate=MIN_RATE
-            )
-            if not picked:
+            ops = fivesim.list_operators(prices, COUNTRY, PRODUCT, MAX_PRICE)
+            # Try 'any' first (5sim chooses), then best-rate operators.
+            candidates: list[tuple[str, float | None, float | None]] = [("any", None, None)]
+            for operator, cost, rate, _count in ops:
+                candidates.append((operator, cost, rate))
+            # de-dup preserving order
+            seen: set[str] = set()
+            uniq: list[tuple[str, float | None, float | None]] = []
+            for row in candidates:
+                if row[0] in seen:
+                    continue
+                seen.add(row[0])
+                uniq.append(row)
+            candidates = uniq
+
+            if len(candidates) == 1 and not ops:
                 await status_msg.edit_text(
-                    f"No hay stock fiable de {PRODUCT} en {COUNTRY} "
-                    f"a ≤ ${MAX_PRICE:.2f} con prioridad rate>0.\n"
-                    "Evito operadores con rate 0 (te clavan el saldo)."
+                    f"No hay stock listado de {PRODUCT} en {COUNTRY} a ≤ ${MAX_PRICE:.2f}."
                 )
                 return
 
-            operator, cost, rate = picked
-            if OPERATOR_PREF and OPERATOR_PREF != "any":
-                for country_node in (prices.get(COUNTRY, {}), prices):
-                    product_node = country_node.get(PRODUCT, {})
-                    info = product_node.get(OPERATOR_PREF)
-                    if isinstance(info, dict):
-                        try:
-                            pref_cost = float(info.get("cost", 9999))
-                            pref_count = int(info.get("count", 0))
-                            pref_rate = float(info.get("rate") or 0)
-                        except (TypeError, ValueError):
-                            break
-                        if (
-                            pref_count > 0
-                            and pref_cost <= MAX_PRICE
-                            and pref_rate >= MIN_RATE
-                        ):
-                            operator, cost, rate = OPERATOR_PREF, pref_cost, pref_rate
-                        break
+            order: dict[str, Any] | None = None
+            chosen_op = "any"
+            chosen_cost: float | None = None
+            chosen_rate: float | None = None
+            attempts: list[str] = []
+            max_attempts = min(6, len(candidates))
 
-            await status_msg.edit_text(
-                f"Comprando {PRODUCT} / {COUNTRY} / {operator} "
-                f"(~${cost:.4f}, rate {rate:.2f}%)..."
-            )
-            order = await fivesim.buy_activation(COUNTRY, operator, PRODUCT)
+            for idx, (operator, cost, rate) in enumerate(candidates[:max_attempts]):
+                label = operator if cost is None else f"{operator} ~${cost:.4f} rate={rate:.2f}%"
+                await status_msg.edit_text(
+                    f"Intento {idx+1}/{max_attempts}: {PRODUCT}/{COUNTRY}/{label}"
+                )
+                try:
+                    bought = await fivesim.buy_activation(COUNTRY, operator, PRODUCT)
+                except FiveSimError as exc:
+                    msg = str(exc)
+                    attempts.append(f"{operator}: {msg}")
+                    log.warning("buy failed %s: %s", operator, msg)
+                    # no free phones / not enough money / etc -> try next
+                    continue
+
+                if not isinstance(bought, dict):
+                    attempts.append(f"{operator}: bad response {bought}")
+                    continue
+
+                oid = bought.get("id")
+                phone = bought.get("phone")
+                status = str(bought.get("status") or "")
+                if not oid or not phone:
+                    attempts.append(f"{operator}: incomplete {bought}")
+                    continue
+
+                # Junk: already RECEIVED with empty SMS right after buy.
+                if status == "RECEIVED" and not has_real_sms(bought):
+                    attempts.append(f"{operator}: basura RECEIVED vacío → ban {oid}")
+                    await _auto_ban(fivesim, int(oid))
+                    await asyncio.sleep(0.4)
+                    continue
+
+                order = bought
+                chosen_op = str(bought.get("operator") or operator)
+                chosen_cost = float(bought.get("price") if bought.get("price") is not None else (cost or 0))
+                chosen_rate = rate
+                break
+
+            if order is None:
+                detail = "\n".join(f"• {a}" for a in attempts[:8]) or "sin detalle"
+                await status_msg.edit_text(
+                    "No pude sacar un número usable.\n"
+                    f"{PRODUCT}/{COUNTRY} ≤ ${MAX_PRICE:.2f}\n\n"
+                    f"{detail}\n\n"
+                    "En España WhatsApp barato suele ser virtual34 (rate 0): "
+                    "marca RECEIVED vacío o 'no free phones'. Prueba más tarde o sube MAX_PRICE."
+                )
+                return
+
         except FiveSimError as exc:
             await status_msg.edit_text(f"Error al comprar: {exc}")
             return
 
-        if not isinstance(order, dict):
-            await status_msg.edit_text(f"Error 5sim: {order}")
-            return
         order_id = order.get("id")
         phone = order.get("phone")
         if not order_id or not phone:
@@ -371,13 +410,13 @@ async def cmd_buy(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             await status_msg.edit_text(msg, parse_mode=ParseMode.MARKDOWN)
             return
 
-        price = order.get("price", cost)
+        price = order.get("price", chosen_cost)
         chat_order = ChatOrder(
             order_id=int(order_id),
             phone=str(phone),
             product=PRODUCT,
             country=COUNTRY,
-            operator=str(order.get("operator") or operator),
+            operator=chosen_op,
             price=float(price) if price is not None else None,
             chat_id=chat.id,
             message_thread_id=message.message_thread_id,
@@ -391,16 +430,18 @@ async def cmd_buy(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         ORDERS[chat.id] = chat_order
 
         price_txt = f"${float(price):.4f}" if price is not None else "?"
+        rate_txt = f"{chosen_rate:.2f}%" if chosen_rate is not None else "?"
         await status_msg.edit_text(
-            f"📱 Número comprado\n"
+            f"📱 Número comprado — úsalo ya en WhatsApp\n"
             f"Número: `{phone}`\n"
             f"Pedido: `{order_id}`\n"
             f"Operador: `{chat_order.operator}`\n"
             f"Precio: {price_txt}\n"
-            f"Rate: {rate:.2f}%\n"
+            f"Rate: {rate_txt}\n"
             f"Producto: {PRODUCT} / {COUNTRY}\n\n"
-            f"⏳ Esperando SMS... consulto cada {int(SMS_POLL_SECONDS)}s\n"
-            f"Estado 5sim: `{order.get('status', '?')}`\n"
+            f"⏳ Esperando el SMS de WhatsApp...\n"
+            f"Consulto 5sim cada {int(SMS_POLL_SECONDS)}s hasta que llegue el código.\n"
+            f"(Ignoro el estado RECEIVED vacío; solo cuenta SMS con texto/código)\n"
             f"Si no llega: /ban",
             parse_mode=ParseMode.MARKDOWN,
         )
@@ -493,6 +534,25 @@ async def cmd_ban(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 
+async def cmd_stock(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    try:
+        prices = await api(context).prices(COUNTRY, PRODUCT)
+        ops = api(context).list_operators(prices, COUNTRY, PRODUCT, MAX_PRICE)
+    except FiveSimError as exc:
+        await update.effective_message.reply_text(f"Error: {exc}")
+        return
+    if not ops:
+        await update.effective_message.reply_text(
+            f"Sin stock ≤ ${MAX_PRICE:.2f} para {PRODUCT}/{COUNTRY}"
+        )
+        return
+    lines = [f"Stock {PRODUCT}/{COUNTRY} ≤ ${MAX_PRICE:.2f}:"]
+    for op, cost, rate, count in ops[:20]:
+        flag = "⚠" if rate <= 0 else "✓"
+        lines.append(f"{flag} `{op}` ${cost:.4f} rate={rate} qty={count}")
+    await update.effective_message.reply_text("\n".join(lines), parse_mode=ParseMode.MARKDOWN)
+
+
 async def on_startup(app: Application) -> None:
     fivesim = FiveSim(FIVESIM_API_TOKEN)
     app.bot_data["fivesim"] = fivesim
@@ -502,6 +562,7 @@ async def on_startup(app: Application) -> None:
             BotCommand("status", "Ver estado del pedido / SMS"),
             BotCommand("ban", "Banear número si no llega SMS"),
             BotCommand("balance", "Ver saldo 5sim"),
+            BotCommand("stock", "Ver operadores/stock"),
             BotCommand("help", "Ayuda"),
         ]
     )
@@ -536,6 +597,7 @@ def main() -> None:
     )
     app.add_handler(CommandHandler(["start", "help"], cmd_start))
     app.add_handler(CommandHandler("balance", cmd_balance))
+    app.add_handler(CommandHandler("stock", cmd_stock))
     app.add_handler(CommandHandler("buy", cmd_buy))
     app.add_handler(CommandHandler("status", cmd_status))
     app.add_handler(CommandHandler("ban", cmd_ban))

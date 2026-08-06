@@ -7,10 +7,24 @@ from typing import Any
 import httpx
 
 
+ERROR_ES = {
+    "no free phones": "No hay números disponibles ahora mismo en 5sim (stock vacío). No es un número gratis.",
+    "not enough user balance": "Saldo insuficiente en 5sim.",
+    "not enough rating": "Rating insuficiente en 5sim.",
+    "bad country": "País incorrecto.",
+    "bad operator": "Operador incorrecto.",
+    "no product": "Producto no disponible.",
+    "server offline": "Servidor 5sim caído.",
+    "order not found": "Pedido no encontrado.",
+}
+
+
 class FiveSimError(Exception):
     def __init__(self, message: str, status_code: int | None = None):
-        super().__init__(message)
+        self.raw_message = str(message).strip()
         self.status_code = status_code
+        nice = ERROR_ES.get(self.raw_message.lower(), self.raw_message)
+        super().__init__(nice)
 
 
 class FiveSim:
@@ -41,7 +55,6 @@ class FiveSim:
             data = response.json()
         except ValueError as exc:
             raise FiveSimError(body) from exc
-        # 5sim sometimes returns a plain JSON string with HTTP 200
         if isinstance(data, str):
             if data.lower() in {"success", "ok"}:
                 return {"status": data}
@@ -65,6 +78,37 @@ class FiveSim:
             params={"country": country, "product": product},
         )
 
+    def list_operators(
+        self,
+        prices_payload: dict[str, Any],
+        country: str,
+        product: str,
+        max_price: float,
+    ) -> list[tuple[str, float, float, int]]:
+        """Return [(operator, cost, rate, count), ...] affordable with stock."""
+        country_node = prices_payload.get(country, prices_payload)
+        if not isinstance(country_node, dict):
+            return []
+        product_node = country_node.get(product, country_node)
+        if not isinstance(product_node, dict):
+            return []
+
+        out: list[tuple[str, float, float, int]] = []
+        for operator, info in product_node.items():
+            if not isinstance(info, dict):
+                continue
+            try:
+                cost = float(info.get("cost", 9999))
+                count = int(info.get("count", 0))
+                rate = float(info.get("rate") or 0)
+            except (TypeError, ValueError):
+                continue
+            if count > 0 and cost <= max_price:
+                out.append((operator, cost, rate, count))
+        # Prefer higher rate, then cheaper
+        out.sort(key=lambda row: (-row[2], row[1], -row[3]))
+        return out
+
     def pick_operator(
         self,
         prices_payload: dict[str, Any],
@@ -73,47 +117,12 @@ class FiveSim:
         max_price: float,
         min_rate: float = 0.0,
     ) -> tuple[str, float, float] | None:
-        """Return (operator, cost, rate) with stock and cost<=max.
-
-        Prefer higher delivery rate, then cheaper price.
-        Operators below min_rate are only used if nothing better exists.
-        """
-        country_node = prices_payload.get(country, prices_payload)
-        if not isinstance(country_node, dict):
+        ops = self.list_operators(prices_payload, country, product, max_price)
+        if not ops:
             return None
-        product_node = country_node.get(product, country_node)
-        if not isinstance(product_node, dict):
-            return None
-
-        good: list[tuple[float, float, int, str]] = []
-        fallback: list[tuple[float, float, int, str]] = []
-        for operator, info in product_node.items():
-            if not isinstance(info, dict):
-                continue
-            try:
-                cost = float(info.get("cost", 9999))
-                count = int(info.get("count", 0))
-            except (TypeError, ValueError):
-                continue
-            if count <= 0 or cost > max_price:
-                continue
-            rate_raw = info.get("rate")
-            try:
-                rate = float(rate_raw) if rate_raw is not None else 0.0
-            except (TypeError, ValueError):
-                rate = 0.0
-            row = (rate, cost, count, operator)
-            if rate >= min_rate and rate > 0:
-                good.append(row)
-            else:
-                fallback.append(row)
-
-        candidates = good or fallback
-        if not candidates:
-            return None
-        candidates.sort(key=lambda row: (-row[0], row[1], -row[2]))
-        rate, cost, _count, operator = candidates[0]
-        return operator, cost, rate
+        good = [o for o in ops if o[2] >= min_rate and o[2] > 0]
+        chosen = (good or ops)[0]
+        return chosen[0], chosen[1], chosen[2]
 
     async def buy_activation(
         self, country: str, operator: str, product: str

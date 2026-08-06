@@ -378,8 +378,9 @@ async def cmd_buy(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                     "No pude sacar un número usable.\n"
                     f"{PRODUCT}/{COUNTRY} ≤ ${MAX_PRICE:.2f}\n\n"
                     f"{detail}\n\n"
-                    "En España WhatsApp barato suele ser virtual34 (rate 0): "
-                    "marca RECEIVED vacío o 'no free phones'. Prueba más tarde o sube MAX_PRICE."
+                    "Eso NO son números gratis: en 5sim 'no free phones' = sin stock.
+"
+                    "Prueba /buy más tarde o sube MAX_PRICE."
                 )
                 return
 

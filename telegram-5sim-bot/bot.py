@@ -311,10 +311,11 @@ async def cmd_buy(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
             prices = await fivesim.prices(COUNTRY, PRODUCT)
             ops = fivesim.list_operators(prices, COUNTRY, PRODUCT, MAX_PRICE)
-            # Try 'any' first (5sim chooses), then best-rate operators.
-            candidates: list[tuple[str, float | None, float | None]] = [("any", None, None)]
+            # Paid numbers only. Try listed operators first, then 'any'.
+            candidates: list[tuple[str, float | None, float | None]] = []
             for operator, cost, rate, _count in ops:
                 candidates.append((operator, cost, rate))
+            candidates.append(("any", None, None))
             # de-dup preserving order
             seen: set[str] = set()
             uniq: list[tuple[str, float | None, float | None]] = []
@@ -363,13 +364,8 @@ async def cmd_buy(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                     attempts.append(f"{operator}: incomplete {bought}")
                     continue
 
-                # Junk: already RECEIVED with empty SMS right after buy.
-                if status == "RECEIVED" and not has_real_sms(bought):
-                    attempts.append(f"{operator}: basura RECEIVED vacío → ban {oid}")
-                    await _auto_ban(fivesim, int(oid))
-                    await asyncio.sleep(0.4)
-                    continue
-
+                # Accept the number even if 5sim status is RECEIVED.
+                # We only care about real SMS code/text while polling.
                 order = bought
                 chosen_op = str(bought.get("operator") or operator)
                 chosen_cost = float(bought.get("price") if bought.get("price") is not None else (cost or 0))

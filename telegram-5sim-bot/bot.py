@@ -34,10 +34,10 @@ PRODUCT = os.getenv("PRODUCT", "whatsapp").strip()
 OPERATOR_PREF = os.getenv("OPERATOR", "any").strip()
 MAX_PRICE = float(os.getenv("MAX_PRICE", "3"))
 MIN_RATE = float(os.getenv("MIN_RATE", "0"))
-SMS_POLL_SECONDS = float(os.getenv("SMS_POLL_SECONDS", "3"))
+SMS_POLL_SECONDS = float(os.getenv("SMS_POLL_SECONDS", "5"))
 SMS_TIMEOUT_SECONDS = float(os.getenv("SMS_TIMEOUT_SECONDS", "300"))
 # If 5sim marks RECEIVED without SMS body, wait this long then auto-ban.
-EMPTY_RECEIVED_GRACE_SECONDS = float(os.getenv("EMPTY_RECEIVED_GRACE_SECONDS", "15"))
+EMPTY_RECEIVED_GRACE_SECONDS = float(os.getenv("EMPTY_RECEIVED_GRACE_SECONDS", "0"))
 
 
 @dataclass
@@ -195,8 +195,9 @@ async def _poll_sms(app: Application, chat_order: ChatOrder) -> None:
                 )
                 return
 
-            # Fake/empty RECEIVED from bad vendors: wait briefly, then auto-ban.
-            if status == "RECEIVED":
+            # RECEIVED without SMS body yet: keep polling, do not celebrate.
+            # Auto-ban only if EMPTY_RECEIVED_GRACE_SECONDS > 0.
+            if status == "RECEIVED" and EMPTY_RECEIVED_GRACE_SECONDS > 0:
                 now = asyncio.get_running_loop().time()
                 if empty_received_since is None:
                     empty_received_since = now
@@ -204,7 +205,7 @@ async def _poll_sms(app: Application, chat_order: ChatOrder) -> None:
                         chat_id=chat_order.chat_id,
                         text=(
                             "⚠️ 5sim marcó RECEIVED pero aún no hay SMS/código.\n"
-                            f"Espero {int(EMPTY_RECEIVED_GRACE_SECONDS)}s y si sigue vacío hago /ban automático."
+                            f"Sigo consultando cada {int(SMS_POLL_SECONDS)}s..."
                         ),
                         message_thread_id=chat_order.message_thread_id,
                     )
@@ -214,15 +215,14 @@ async def _poll_sms(app: Application, chat_order: ChatOrder) -> None:
                     await app.bot.send_message(
                         chat_id=chat_order.chat_id,
                         text=(
-                            "🚫 Pedido basura: RECEIVED sin SMS.\n"
-                            f"Auto-ban pedido `{chat_order.order_id}` → `{st}`\n"
-                            "No se acepta como SMS válido. Prueba /buy de nuevo."
+                            "🚫 Timeout de RECEIVED sin SMS.\n"
+                            f"Auto-ban pedido `{chat_order.order_id}` → `{st}`"
                         ),
                         parse_mode=ParseMode.MARKDOWN,
                         message_thread_id=chat_order.message_thread_id,
                     )
                     return
-            else:
+            elif status != "RECEIVED":
                 empty_received_since = None
 
             if status in {"CANCELED", "TIMEOUT", "BANNED", "FINISHED"}:
@@ -358,18 +358,6 @@ async def cmd_buy(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             await status_msg.edit_text(f"Respuesta inesperada de 5sim: {order}")
             return
 
-        # If buy already comes as RECEIVED without SMS, ban immediately.
-        if str(order.get("status") or "") == "RECEIVED" and not has_real_sms(order):
-            banned = await _auto_ban(fivesim, int(order_id))
-            st = banned.get("status") if isinstance(banned, dict) else "?"
-            await status_msg.edit_text(
-                "🚫 5sim entregó el número ya en RECEIVED sin SMS.\n"
-                f"Número: `{phone}`\nPedido: `{order_id}`\n"
-                f"Auto-ban: `{st}`\nNo se descuenta como compra válida. Prueba /buy otra vez.",
-                parse_mode=ParseMode.MARKDOWN,
-            )
-            return
-
         if has_real_sms(order):
             code, sms_text = extract_sms(order.get("sms"))
             msg = (
@@ -411,7 +399,8 @@ async def cmd_buy(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             f"Precio: {price_txt}\n"
             f"Rate: {rate:.2f}%\n"
             f"Producto: {PRODUCT} / {COUNTRY}\n\n"
-            f"⏳ Esperando SMS real (código/texto)...\n"
+            f"⏳ Esperando SMS... consulto cada {int(SMS_POLL_SECONDS)}s\n"
+            f"Estado 5sim: `{order.get('status', '?')}`\n"
             f"Si no llega: /ban",
             parse_mode=ParseMode.MARKDOWN,
         )

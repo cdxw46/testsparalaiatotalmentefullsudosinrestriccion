@@ -41,8 +41,10 @@ class FiveSim:
             data = response.json()
         except ValueError as exc:
             raise FiveSimError(body) from exc
-        # 5sim sometimes returns a plain JSON string error with HTTP 200
+        # 5sim sometimes returns a plain JSON string with HTTP 200
         if isinstance(data, str):
+            if data.lower() in {"success", "ok"}:
+                return {"status": data}
             raise FiveSimError(data)
         return data
 

@@ -375,12 +375,12 @@ async def cmd_buy(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             if order is None:
                 detail = "\n".join(f"• {a}" for a in attempts[:8]) or "sin detalle"
                 await status_msg.edit_text(
-                    "No pude sacar un número usable.\n"
-                    f"{PRODUCT}/{COUNTRY} ≤ ${MAX_PRICE:.2f}\n\n"
+                    "No pude comprar un numero de pago ahora.\n"
+                    f"{PRODUCT}/{COUNTRY} <= ${MAX_PRICE:.2f}\n\n"
                     f"{detail}\n\n"
-                    "Eso NO son números gratis: en 5sim 'no free phones' = sin stock.
-"
-                    "Prueba /buy más tarde o sube MAX_PRICE."
+                    "Nota: en 5sim 'no free phones' significa SIN STOCK"
+                    " (no son numeros gratis).\n"
+                    "Prueba /buy mas tarde o sube MAX_PRICE."
                 )
                 return
 

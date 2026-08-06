@@ -33,11 +33,12 @@ COUNTRY = os.getenv("COUNTRY", "spain").strip()
 PRODUCT = os.getenv("PRODUCT", "whatsapp").strip()
 OPERATOR_PREF = os.getenv("OPERATOR", "any").strip()
 MAX_PRICE = float(os.getenv("MAX_PRICE", "3"))
-MIN_RATE = float(os.getenv("MIN_RATE", "0"))
+MIN_RATE = float(os.getenv("MIN_RATE", "1"))
 SMS_POLL_SECONDS = float(os.getenv("SMS_POLL_SECONDS", "5"))
-SMS_TIMEOUT_SECONDS = float(os.getenv("SMS_TIMEOUT_SECONDS", "300"))
+SMS_TIMEOUT_SECONDS = float(os.getenv("SMS_TIMEOUT_SECONDS", "1200"))
 # If 5sim marks RECEIVED without SMS body, wait this long then auto-ban.
 EMPTY_RECEIVED_GRACE_SECONDS = float(os.getenv("EMPTY_RECEIVED_GRACE_SECONDS", "0"))
+PROGRESS_EVERY_SECONDS = float(os.getenv("PROGRESS_EVERY_SECONDS", "30"))
 
 
 @dataclass
@@ -155,6 +156,8 @@ async def _poll_sms(app: Application, chat_order: ChatOrder) -> None:
     deadline = asyncio.get_running_loop().time() + SMS_TIMEOUT_SECONDS
     empty_received_since: float | None = None
     last_status = None
+    last_progress = asyncio.get_running_loop().time()
+    started = last_progress
 
     try:
         while asyncio.get_running_loop().time() < deadline:
@@ -250,6 +253,22 @@ async def _poll_sms(app: Application, chat_order: ChatOrder) -> None:
                     )
                     return
 
+            now = asyncio.get_running_loop().time()
+            if now - last_progress >= PROGRESS_EVERY_SECONDS:
+                last_progress = now
+                waited = int(now - started)
+                await app.bot.send_message(
+                    chat_id=chat_order.chat_id,
+                    text=(
+                        f"⌛ Sigo esperando SMS... ({waited}s)\n"
+                        f"Número: `{chat_order.phone}`\n"
+                        f"Pedido: `{chat_order.order_id}`\n"
+                        f"5sim sigue sin código (sms vacío)."
+                    ),
+                    parse_mode=ParseMode.MARKDOWN,
+                    message_thread_id=chat_order.message_thread_id,
+                )
+
             await asyncio.sleep(SMS_POLL_SECONDS)
 
         # timeout: ban to try refund
@@ -311,11 +330,14 @@ async def cmd_buy(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
             prices = await fivesim.prices(COUNTRY, PRODUCT)
             ops = fivesim.list_operators(prices, COUNTRY, PRODUCT, MAX_PRICE)
-            # Paid numbers only. Try listed operators first, then 'any'.
+            good_ops = [o for o in ops if o[2] >= MIN_RATE]
+            junk_ops = [o for o in ops if o[2] < MIN_RATE]
+            # Paid numbers only. Never buy rate-0 junk by default (no SMS ever arrives).
             candidates: list[tuple[str, float | None, float | None]] = []
-            for operator, cost, rate, _count in ops:
+            for operator, cost, rate, _count in good_ops:
                 candidates.append((operator, cost, rate))
-            candidates.append(("any", None, None))
+            if good_ops:
+                candidates.append(("any", None, None))
             # de-dup preserving order
             seen: set[str] = set()
             uniq: list[tuple[str, float | None, float | None]] = []
@@ -326,9 +348,17 @@ async def cmd_buy(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 uniq.append(row)
             candidates = uniq
 
-            if len(candidates) == 1 and not ops:
+            if not good_ops:
+                junk = ", ".join(
+                    f"{op} ${cost:.2f} rate={rate:.1f}%" for op, cost, rate, _c in junk_ops[:5]
+                ) or "ninguno"
                 await status_msg.edit_text(
-                    f"No hay stock listado de {PRODUCT} en {COUNTRY} a ≤ ${MAX_PRICE:.2f}."
+                    f"No compro: en {COUNTRY}/{PRODUCT} <= ${MAX_PRICE:.2f} "
+                    f"solo hay operadores basura (rate < {MIN_RATE:.0f}%).\n"
+                    f"Ej: {junk}\n\n"
+                    "Esos numeros NUNCA entregan SMS (por eso esperas 20 min en vano).\n"
+                    "Opciones: subir MAX_PRICE, bajar MIN_RATE (no recomendado), "
+                    "o esperar stock con rate > 0."
                 )
                 return
 

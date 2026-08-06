@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from dotenv import load_dotenv
-from telegram import Update
+from telegram import BotCommand, Update
 from telegram.constants import ParseMode
 from telegram.ext import (
     Application,
@@ -390,9 +390,18 @@ async def cmd_ban(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def on_startup(app: Application) -> None:
     fivesim = FiveSim(FIVESIM_API_TOKEN)
     app.bot_data["fivesim"] = fivesim
+    await app.bot.set_my_commands(
+        [
+            BotCommand("buy", f"Comprar {PRODUCT} {COUNTRY} (max ${MAX_PRICE:.0f})"),
+            BotCommand("status", "Ver estado del pedido / SMS"),
+            BotCommand("ban", "Banear número si no llega SMS"),
+            BotCommand("balance", "Ver saldo 5sim"),
+            BotCommand("help", "Ayuda"),
+        ]
+    )
     try:
         profile = await fivesim.profile()
-        log.info("5sim OK balance=%s", profile.get("balance"))
+        log.info("5sim OK balance=%s max_price=%s", profile.get("balance"), MAX_PRICE)
     except FiveSimError as exc:
         log.error("No se pudo validar token 5sim: %s", exc)
 
